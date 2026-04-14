@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pretty Plots — Beautiful Scientific Data Visualization</title>
+
+<!-- SEO -->
+<meta name="description" content="Pretty Plots is a free, browser-based scientific data visualization tool. Create scatter plots, line plots, bar charts, box plots, contour plots, and 3D surfaces with full aesthetic control. No installation required.">
+<meta name="keywords" content="data visualization, scatter plot, contour plot, 3D surface, box plot, regression, scientific plotting, free tool, browser based">
+<meta name="author" content="Pretty Plots">
+
+<!-- Open Graph (for link previews on Slack, Twitter, etc.) -->
+<meta property="og:title" content="Pretty Plots — Beautiful Scientific Data Visualization">
+<meta property="og:description" content="Free browser-based tool for scatter, line, bar, box, contour and 3D surface plots with full aesthetic control. Upload CSV or Excel, customize everything, export as PNG.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://your-username.github.io/pretty-plots/">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Pretty Plots — Beautiful Scientific Data Visualization">
+<meta name="twitter:description" content="Free browser-based scientific plotting tool. No installation required.">
+
+<!-- Favicon inline SVG as data URI -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f1117'/%3E%3Cpolygon points='4,22 16,28 28,22 16,16' fill='rgba(79,142,247,0.4)' stroke='rgba(79,142,247,0.8)' stroke-width='0.8'/%3E%3Cpolygon points='4,10 4,22 16,16 16,4' fill='rgba(79,142,247,0.2)' stroke='rgba(79,142,247,0.6)' stroke-width='0.8'/%3E%3Cpolygon points='16,4 16,16 28,22 28,10' fill='rgba(155,114,247,0.25)' stroke='rgba(155,114,247,0.7)' stroke-width='0.8'/%3E%3Cpolygon points='4,22 10,14 16,18' fill='rgba(79,142,247,0.7)'/%3E%3Cpolygon points='10,14 16,10 16,18' fill='rgba(155,114,247,0.8)'/%3E%3Cpolygon points='16,10 22,13 16,18' fill='rgba(45,212,191,0.85)'/%3E%3Cpolygon points='22,13 28,22 16,18' fill='rgba(79,142,247,0.6)'/%3E%3Cline x1='16' y1='28' x2='4' y2='22' stroke='%234F8EF7' stroke-width='1.5'/%3E%3Cline x1='16' y1='28' x2='28' y2='22' stroke='%239B72F7' stroke-width='1.5'/%3E%3Cline x1='16' y1='28' x2='16' y2='10' stroke='%232DD4BF' stroke-width='1.5'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root {
+  --bg:#0f1117; --bg2:#171922; --bg3:#1e2130; --bg4:#252840;
+  --border:#2a2d3e; --border2:#363a52;
+  --accent:#4f8ef7; --accent2:#9b72f7; --accent3:#2dd4bf;
+  --text:#dde1f0; --text2:#8b92b0; --text3:#555c7a;
+  --danger:#f06b6b; --warn:#f5a623; --success:#2dd4bf;
+  --r:6px; --r2:10px; --r3:14px;
+  --sidebar:280px; --rpanel:300px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:12px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+/* ── LAYOUT ── */
+#app{display:flex;flex:1;overflow:hidden}
+#sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+#topbar{height:44px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:8px;flex-shrink:0}
+#canvas-area{flex:1;overflow-y:auto;padding:20px;background:var(--bg)}
+#rpanel{width:var(--rpanel);min-width:var(--rpanel);background:var(--bg2);border-left:1px solid var(--border);display:none;flex-direction:column;overflow:hidden}
+#rpanel.open{display:flex}
+/* ── BRAND ── */
+#brand{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
+/* brand-icon replaced by SVG */
+.brand-name{font-size:22px;font-weight:700;letter-spacing:-0.03em;line-height:1.1}
+.brand-ver{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:2px}
+/* ── SIDEBAR SECTIONS ── */
+.sb-sec{border-bottom:1px solid var(--border)}
+.sb-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;user-select:none;color:var(--text2);transition:color .15s}
+.sb-hdr:hover{color:var(--text)}
+.sb-hdr-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:5px}
+.sb-hdr-arrow{font-size:9px;transition:transform .2s}
+.sb-hdr-arrow.open{transform:rotate(90deg)}
+.sb-body{padding:8px}
+.sb-body.closed{display:none}
+/* ── DATA TABLE ── */
+#dtable-wrap{overflow:auto;max-height:180px;margin-top:6px}
+#dtable{width:100%;border-collapse:collapse;font-size:10px;font-family:'JetBrains Mono',monospace}
+#dtable th{background:var(--bg3);color:var(--accent);padding:3px 6px;text-align:left;position:sticky;top:0;white-space:nowrap;font-weight:500;font-size:10px}
+#dtable td{padding:2px 6px;border-bottom:1px solid var(--border);color:var(--text2);white-space:nowrap}
+#dtable tr:hover td{background:var(--bg3);color:var(--text)}
+#dtable tr.hr td{opacity:.3;text-decoration:line-through}
+.rt{cursor:pointer;color:var(--text3);font-size:11px;margin-right:3px}
+.rt:hover{color:var(--danger)}
+/* ── UPLOAD ── */
+#upload-zone{border:1.5px dashed var(--border2);border-radius:var(--r2);padding:20px 12px;text-align:center;cursor:pointer;transition:all .2s;color:var(--text3)}
+#upload-zone:hover,#upload-zone.drag{border-color:var(--accent);color:var(--accent)}
+/* ── PLOT TYPE GRID ── */
+.pt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.pt-btn{padding:6px 3px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);cursor:pointer;text-align:center;font-size:9px;font-weight:600;color:var(--text2);transition:all .15s;letter-spacing:.02em;text-transform:uppercase}
+.pt-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,.08)}
+.pt-btn.active{background:rgba(79,142,247,.12);border-color:var(--accent);color:var(--accent)}
+.pt-icon{font-size:16px;display:block;margin-bottom:2px}
+/* ── PLOT LIST ── */
+.pl-item{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:var(--r);cursor:pointer;border:1px solid transparent;transition:all .15s}
+.pl-item:hover{background:var(--bg3)}
+.pl-item.active{background:rgba(79,142,247,.1);border-color:rgba(79,142,247,.4)}
+.pl-item-name{flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-item-type{font-size:9px;color:var(--text3);font-family:'JetBrains Mono',monospace;text-transform:uppercase}
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);color:var(--text);cursor:pointer;font-family:'Inter',sans-serif;font-size:11px;font-weight:500;transition:all .15s;white-space:nowrap;line-height:1.3}
+.btn:hover{background:var(--bg4);border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#3d7ef5}
+.btn.sm{padding:3px 8px;font-size:10px}
+.btn.xs{padding:2px 6px;font-size:9px}
+.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn.danger:hover{background:rgba(240,107,107,.1)}
+.btn.act{background:rgba(79,142,247,.15);border-color:var(--accent);color:var(--accent)}
+/* ── FORM ELEMENTS ── */
+input,select,textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);padding:4px 7px;font-family:'Inter',sans-serif;font-size:11px;width:100%;outline:none;line-height:1.4}
+input:focus,select:focus{border-color:var(--accent);background:var(--bg4)}
+input[type=color]{padding:2px 3px;height:26px;cursor:pointer;width:32px;border-radius:4px}
+input[type=range]{padding:0;height:4px;cursor:pointer;accent-color:var(--accent)}
+input[type=checkbox]{width:13px;height:13px;cursor:pointer;accent-color:var(--accent)}
+label{font-size:10px;color:var(--text2);display:block;margin-bottom:2px}
+.fr{margin-bottom:7px}
+.fri{display:flex;gap:6px;align-items:center;margin-bottom:5px}
+.fri label{white-space:nowrap;margin-bottom:0;min-width:70px}
+.fri input,.fri select{flex:1}
+select option{background:var(--bg3)}
+/* ── CHART CARD ── */
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r3);padding:16px;position:relative}
+.cc-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
+.cc-title{background:transparent;border:none;color:var(--text);font-size:14px;font-weight:600;font-family:'Inter',sans-serif;flex:1;outline:none;border-bottom:1px solid transparent}
+.cc-title:focus{border-bottom-color:var(--accent)}
+.cc-acts{display:flex;gap:4px;flex-shrink:0}
+/* ── RIGHT PANEL ── */
+.rp-hdr{padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;font-size:12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.rp-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+.rp-tab{padding:7px 12px;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s}
+.rp-tab:hover{color:var(--text2)}
+.rp-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.rp-body{flex:1;overflow-y:auto;padding:12px 14px}
+.rp-sec{margin-bottom:14px}
+.rp-sec-title{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+/* ── COLOR PALETTE ── */
+.palette-theme{margin-bottom:10px}
+.palette-theme-name{font-size:10px;color:var(--text2);margin-bottom:4px;font-weight:500}
+.palette-swatches{display:flex;flex-wrap:wrap;gap:4px}
+.swatch{width:22px;height:22px;border-radius:4px;cursor:pointer;border:2px solid transparent;transition:all .15s;flex-shrink:0}
+.swatch:hover{transform:scale(1.15)}
+.swatch.sel{border-color:var(--text);transform:scale(1.1)}
+/* ── COLORMAP DROPDOWN ── */
+.cm-select{position:relative}
+.cm-display{display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:border-color .15s}
+.cm-display:hover{border-color:var(--accent)}
+.cm-bar{height:14px;flex:1;border-radius:3px}
+.cm-name{font-size:10px;color:var(--text2);white-space:nowrap;min-width:60px}
+.cm-arrow{color:var(--text3);font-size:9px}
+.cm-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r2);z-index:200;max-height:280px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.cm-option{display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;transition:background .1s}
+.cm-option:hover{background:var(--bg4)}
+.cm-option.sel{background:rgba(79,142,247,.12)}
+.cm-option-bar{height:12px;flex:1;border-radius:2px}
+.cm-option-name{font-size:10px;color:var(--text2);min-width:70px}
+/* ── STYLE PRESETS ── */
+.preset-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:5px}
+.preset-btn{padding:7px 8px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);cursor:pointer;text-align:center;transition:all .15s}
+.preset-btn:hover{border-color:var(--accent)}
+.preset-btn.active{border-color:var(--accent);background:rgba(79,142,247,.1)}
+.preset-name{font-size:11px;font-weight:600;color:var(--text)}
+.preset-desc{font-size:9px;color:var(--text3);margin-top:1px}
+/* ── REGRESSION DISPLAY ── */
+.reg-formula{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent3);line-height:1.6;margin-bottom:8px;word-break:break-word}
+.reg-stat{display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:2px}
+.reg-stat span:last-child{color:var(--text);font-family:'JetBrains Mono',monospace}
+/* ── SLIDER VARIABLE ── */
+/* ── TRENDLINE PER CATEGORY ── */
+.cat-tl-item{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)}
+.cat-tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.cat-tl-name{flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis}
+.cat-tl-ctrl{display:flex;align-items:center;gap:4px}
+/* ── NOTIFICATIONS ── */
+#notif{position:fixed;top:14px;right:14px;z-index:9999;display:flex;flex-direction:column;gap:5px}
+.notif{background:var(--bg4);border:1px solid var(--border2);border-radius:var(--r);padding:7px 12px;font-size:11px;animation:ni .2s ease}
+.notif.ok{border-left:3px solid var(--success)}
+.notif.err{border-left:3px solid var(--danger)}
+@keyframes ni{from{transform:translateX(16px);opacity:0}to{transform:translateX(0);opacity:1}}
+/* ── MISC ── */
+hr{border:none;border-top:1px solid var(--border);margin:8px 0}
+.mono{font-family:'JetBrains Mono',monospace}
+.tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;background:rgba(79,142,247,.15);color:var(--accent);font-weight:600}
+.empty{text-align:center;padding:40px 20px;color:var(--text3)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+/* canvas wrap */
+.cv-wrap{position:relative;width:100%}
+</style>
+</head>
+<body>
+<div id="notif"></div>
+<div id="app">
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="brand">
+    <svg width="64" height="64" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+      <!-- Floor plane -->
+      <polygon points="4,22 16,28 28,22 16,16" fill="rgba(79,142,247,0.18)" stroke="rgba(79,142,247,0.5)" stroke-width="0.8"/>
+      <!-- Back-left wall -->
+      <polygon points="4,10 4,22 16,16 16,4" fill="rgba(79,142,247,0.10)" stroke="rgba(79,142,247,0.4)" stroke-width="0.8"/>
+      <!-- Back-right wall -->
+      <polygon points="16,4 16,16 28,22 28,10" fill="rgba(155,114,247,0.13)" stroke="rgba(155,114,247,0.45)" stroke-width="0.8"/>
+      <!-- Surface mesh - front hill shape -->
+      <polygon points="4,22 10,14 16,10 22,13 28,22" fill="rgba(79,142,247,0.0)" stroke="none"/>
+      <!-- Surface colored patches -->
+      <polygon points="4,22 10,14 16,18" fill="rgba(79,142,247,0.55)" stroke="rgba(30,33,48,0.3)" stroke-width="0.5"/>
+      <polygon points="10,14 16,10 16,18" fill="rgba(155,114,247,0.65)" stroke="rgba(30,33,48,0.3)" stroke-width="0.5"/>
+      <polygon points="16,10 22,13 16,18" fill="rgba(45,212,191,0.70)" stroke="rgba(30,33,48,0.3)" stroke-width="0.5"/>
+      <polygon points="22,13 28,22 16,18" fill="rgba(79,142,247,0.45)" stroke="rgba(30,33,48,0.3)" stroke-width="0.5"/>
+      <polygon points="4,22 16,18 16,28" fill="rgba(79,142,247,0.30)" stroke="rgba(30,33,48,0.3)" stroke-width="0.5"/>
+      <polygon points="16,18 28,22 16,28" fill="rgba(155,114,247,0.25)" stroke="rgba(30,33,48,0.3)" stroke-width="0.5"/>
+      <!-- Axis lines -->
+      <line x1="16" y1="28" x2="4" y2="22" stroke="rgba(79,142,247,0.9)" stroke-width="1.2"/>
+      <line x1="16" y1="28" x2="28" y2="22" stroke="rgba(155,114,247,0.9)" stroke-width="1.2"/>
+      <line x1="16" y1="28" x2="16" y2="10" stroke="rgba(45,212,191,0.9)" stroke-width="1.2"/>
+      <!-- Axis end dots -->
+      <circle cx="4" cy="22" r="1.5" fill="#4F8EF7"/>
+      <circle cx="28" cy="22" r="1.5" fill="#9B72F7"/>
+      <circle cx="16" cy="10" r="1.5" fill="#2DD4BF"/>
+    </svg>
+    <div>
+      <div class="brand-name">Pretty Plots</div>
+      <div class="brand-ver">v2.0</div>
+    </div>
+  </div>
+  <div id="support-bar" style="padding:10px 12px 12px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(247,147,26,0.08),rgba(247,147,26,0.03))">
+    <!-- Logo + address on same row -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+      <svg width="28" height="28" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+        <circle cx="15" cy="15" r="14.5" fill="#F7931A" stroke="rgba(247,147,26,0.3)" stroke-width="1"/>
+        <path d="M19.8 13.1c.3-1.8-1.1-2.8-3-3.4l.6-2.5-1.5-.4-.6 2.4c-.4-.1-.8-.2-1.2-.3l.6-2.4-1.5-.4-.6 2.5c-.3-.1-.6-.2-.9-.2v0l-2-.5-.4 1.6s1.1.3 1.1.3c.6.2.7.6.7.9l-.7 2.9c0 0 .1 0 .1.1l-.1 0-1 4c-.1.2-.3.5-.7.4 0 .1-1.1-.3-1.1-.3l-.8 1.7 1.9.5c.4.1.7.2 1.1.3l-.6 2.5 1.5.4.6-2.5c.4.1.8.2 1.2.3l-.6 2.5 1.5.4.6-2.5c2.5.5 4.4.3 5.2-2 .6-1.8 0-2.8-1.3-3.5.9-.2 1.6-.8 1.8-2zm-3.2 4.5c-.4 1.8-3.3.8-4.2.6l.8-3c.9.2 3.8.7 3.4 2.4zm.5-4.5c-.4 1.6-2.8.8-3.6.6l.7-2.7c.8.2 3.3.6 2.9 2.1z" fill="white"/>
+      </svg>
+      <div style="font-size:7.5px;font-family:'JetBrains Mono',monospace;color:var(--text3);word-break:break-all;cursor:pointer;padding:4px 7px;background:rgba(247,147,26,0.1);border-radius:4px;border:1px solid rgba(247,147,26,0.25);transition:all .15s;display:flex;align-items:center;gap:5px;flex:1;min-width:0" onclick="navigator.clipboard&&navigator.clipboard.writeText('38mQRxtUuvqaYBXUADh2p31V3BBiVfqhQ6').then(()=>notify('BTC address copied! ₿'))" title="Click to copy" onmouseover="this.style.background='rgba(247,147,26,0.18)'" onmouseout="this.style.background='rgba(247,147,26,0.1)'">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">38mQRxtUuvqaYBXUADh2p31V3BBiVfqhQ6</span>
+        <span style="color:var(--text3);font-size:9px;flex-shrink:0">⎘</span>
+      </div>
+    </div>
+    <!-- Message below -->
+    <div style="font-size:9px;color:var(--text2);line-height:1.5">This is a free tool and always will be! Consider supporting to help develop more tools and updates to Pretty Plots.</div>
+  </div>
+
+  <!-- DATA -->
+  <div class="sb-sec">
+    <div class="sb-hdr" onclick="toggleSb('sb-data',this)">
+      <span class="sb-hdr-label"><span class="sb-hdr-arrow open">▶</span> Data</span>
+      <span id="data-badge" style="font-size:9px;color:var(--accent3)"></span>
+    </div>
+    <div class="sb-body" id="sb-data">
+      <div id="upload-zone" onclick="document.getElementById('file-input').click()" ondragover="ev.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+        <div style="font-size:24px;margin-bottom:6px">⬆</div>
+        <div style="font-size:11px;font-weight:600;margin-bottom:3px">Drop CSV or Excel</div>
+        <div style="font-size:10px">or click to browse</div>
+      </div>
+      <input type="file" id="file-input" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleFile(this)">
+      <div id="dtable-wrap" style="display:none">
+        <table id="dtable"><thead id="dth"></thead><tbody id="dtb"></tbody></table>
+      </div>
+      <div id="row-actions" style="display:none;margin-top:5px;display:flex;gap:4px">
+        <button class="btn xs" onclick="showAllRows()">Show All</button>
+        <button class="btn xs" onclick="hideAllRows()">Hide All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD PLOT -->
+  <div class="sb-sec">
+    <div class="sb-hdr" onclick="toggleSb('sb-add',this)">
+      <span class="sb-hdr-label"><span class="sb-hdr-arrow open">▶</span> Add Plot</span>
+    </div>
+    <div class="sb-body" id="sb-add">
+      <div class="pt-grid">
+        <div class="pt-btn" onclick="addPlot('scatter')"><span class="pt-icon">⊹</span>Scatter</div>
+        <div class="pt-btn" onclick="addPlot('line')"><span class="pt-icon">⟋</span>Line</div>
+        <div class="pt-btn" onclick="addPlot('bar')"><span class="pt-icon">▐</span>Bar</div>
+        <div class="pt-btn" onclick="addPlot('barstack')"><span class="pt-icon">▬</span>Stacked</div>
+        <div class="pt-btn" onclick="addPlot('bargroup')"><span class="pt-icon">▩</span>Grouped</div>
+        <div class="pt-btn" onclick="addPlot('box')"><span class="pt-icon">□</span>Box</div>
+        <div class="pt-btn" onclick="addPlot('contour')"><span class="pt-icon">◎</span>Contour</div>
+        <div class="pt-btn" onclick="addPlot('surface3d')"><span class="pt-icon">◇</span>3D Surf</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLOTS -->
+  <div class="sb-sec" style="flex:1;overflow:auto">
+    <div class="sb-hdr" onclick="toggleSb('sb-plots',this)">
+      <span class="sb-hdr-label"><span class="sb-hdr-arrow open">▶</span> Plots</span>
+      <span id="plot-count" style="font-size:9px;color:var(--text3)"></span>
+    </div>
+    <div class="sb-body" id="sb-plots">
+      <div id="plot-list" style="display:flex;flex-direction:column;gap:3px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="topbar">
+    <span style="font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.06em;text-transform:uppercase">Canvas</span>
+    <div style="flex:1"></div>
+    <button class="btn sm" onclick="renderActive()">▶ Render</button>
+    <button class="btn sm" onclick="renderAll()">▶▶ All</button>
+    <button class="btn sm" onclick="dlActive()">↓ Export</button>
+    <button class="btn sm" id="rp-toggle-btn" onclick="toggleRp()">⚙ Style</button>
+  </div>
+  <div id="canvas-area">
+    <div class="empty" id="empty-state">
+      <div class="empty-icon">⬚</div>
+      <div style="font-weight:600;margin-bottom:4px;font-size:13px">No plots yet</div>
+      <div>Import data, then pick a plot type</div>
+    </div>
+    <div id="plots-container" style="display:flex;flex-direction:column;gap:20px"></div>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div id="rpanel">
+  <div class="rp-hdr">
+    <span id="rp-title">Plot Settings</span>
+    <button class="btn xs" onclick="toggleRp()">✕</button>
+  </div>
+  <div class="rp-tabs" id="rp-tabs"></div>
+  <div class="rp-body" id="rp-body">
+    <div style="padding:20px;text-align:center;color:var(--text3);font-size:11px">Select a plot to configure</div>
+  </div>
+</div>
+
+</div>
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+const S = {
+  data: [], cols: [], hiddenRows: new Set(),
+  plots: [], active: null,
+  charts: {}, // chartjs instances
+};
+
+// ═══════════════════════════════════════════════════════════
+// COLOR SYSTEM
+// ═══════════════════════════════════════════════════════════
+const THEMES = {
+  "Office Blue": ["#4472C4","#ED7D31","#A9D18E","#FF0000","#FFC000","#5B9BD5","#70AD47","#264478"],
+  "Office Colorful": ["#4472C4","#ED7D31","#A9D18E","#FF0000","#FFC000","#5B9BD5","#70AD47","#264478","#9E480E","#636363"],
+  "Vivid": ["#E63946","#457B9D","#2A9D8F","#E9C46A","#F4A261","#8338EC","#06D6A0","#118AB2","#FFB703","#FB8500"],
+  "Pastel": ["#AEC6CF","#FFD1DC","#B5EAD7","#FFDAC1","#C7CEEA","#E2F0CB","#F0E6EF","#D4E6F1","#FCE4D6","#D5E8D4"],
+  "Dark Scientific": ["#4F8EF7","#9B72F7","#2DD4BF","#F06B6B","#F5A623","#60D394","#EE6352","#08B2E3","#FFE74C","#C879FF"],
+  "Earthy": ["#8B5E3C","#C49A6C","#6B8F71","#3E5641","#A0522D","#D4A373","#606C38","#283618","#BC6C25","#DDA15E"],
+  "Colorblind Safe": ["#0077BB","#33BBEE","#009988","#EE7733","#CC3311","#EE3377","#BBBBBB","#000000"],
+  "Monochrome": ["#1A1A2E","#16213E","#0F3460","#533483","#E94560","#8B8B8B","#B0B0B0","#D4D4D4"],
+};
+
+const COLORMAPS = {
+  viridis:   {stops:["#440154","#482777","#3f4a8a","#31678e","#26838f","#1f9d8a","#6cce5a","#b6de2b","#fee825"]},
+  plasma:    {stops:["#0d0887","#5302a3","#8b0aa5","#b83289","#db5c68","#f48849","#febd2a","#f0f921"]},
+  inferno:   {stops:["#000004","#320a5e","#781c6d","#bb3754","#ed6925","#fbb61a","#fcffa4"]},
+  magma:     {stops:["#000004","#2c1160","#721f81","#b5367a","#f1605d","#feae76","#fcfdbf"]},
+  cividis:   {stops:["#00204d","#213d6b","#555b6e","#7b7b78","#a6954c","#d5c432","#ffea46"]},
+  turbo:     {stops:["#30123b","#4145ab","#4675ed","#39a5f5","#1bcfd4","#24eca6","#a2fc3c","#fded2a","#fe9b2d","#ea4f20","#be2102","#7a0402"]},
+  coolwarm:  {stops:["#3b4cc0","#6688ee","#99baff","#dddddd","#ff9977","#ee4444","#b40426"]},
+  rdbu:      {stops:["#053061","#2166ac","#4393c3","#92c5de","#fddbc7","#f4a582","#d6604d","#b2182b"]},
+  spectral:  {stops:["#9e0142","#d53e4f","#f46d43","#fdae61","#fee08b","#e6f598","#abdda4","#66c2a5","#3288bd","#5e4fa2"]},
+  rainbow:   {stops:["#6e40aa","#4775de","#1aadce","#29d0a0","#9cf63e","#fdc527","#f65822","#b60a23"]},
+  hot:       {stops:["#000000","#8b0000","#ff0000","#ff8c00","#ffff00","#ffffff"]},
+  cool:      {stops:["#00ffff","#00e5ff","#00bfff","#4040ff","#8000ff","#ff00ff"]},
+  greens:    {stops:["#f7fcf5","#c7e9c0","#74c476","#238b45","#00441b"]},
+  blues:     {stops:["#f7fbff","#c6dbef","#6baed6","#2171b5","#084594"]},
+  reds:      {stops:["#fff5f0","#fcbba1","#fb6a4a","#de2d26","#a50f15"]},
+  oranges:   {stops:["#fff5eb","#fdd0a2","#fd8d3c","#d94801","#7f2704"]},
+  purples:   {stops:["#fcfbfd","#dadaeb","#9e9ac8","#6a51a3","#3f007d"]},
+  greys:     {stops:["#ffffff","#d9d9d9","#969696","#525252","#000000"]},
+  piyg:      {stops:["#8e0152","#de77ae","#f7f7f7","#7fbc41","#276419"]},
+  prgn:      {stops:["#40004b","#9970ab","#f7f7f7","#5aae61","#00441b"]},
+};
+
+function cmGradientCSS(name) {
+  const stops = COLORMAPS[name]?.stops || COLORMAPS.viridis.stops;
+  return `linear-gradient(to right,${stops.join(',')})`;
+}
+
+function getColorFromMap(val, mn, mx, mapName, cmOpts) {
+  const ramp = COLORMAPS[mapName]?.stops || COLORMAPS.viridis.stops;
+  let t;
+  if(cmOpts && (cmOpts.cmMin!==''||cmOpts.cmMax!==''||cmOpts.cmMid!=='')) {
+    const cMin = cmOpts.cmMin!==''&&cmOpts.cmMin!==null ? parseFloat(cmOpts.cmMin) : mn;
+    const cMax = cmOpts.cmMax!==''&&cmOpts.cmMax!==null ? parseFloat(cmOpts.cmMax) : mx;
+    const hasMid = cmOpts.cmMid!==''&&cmOpts.cmMid!==null;
+    const cMid = hasMid ? parseFloat(cmOpts.cmMid) : (cMin+cMax)/2;
+    const clampVal = Math.max(cMin, Math.min(cMax, val));
+    if(hasMid && cMid>cMin && cMid<cMax) {
+      // Piecewise: map [cMin,cMid] -> [0,0.5], [cMid,cMax] -> [0.5,1]
+      t = clampVal<=cMid ? 0.5*(clampVal-cMin)/(cMid-cMin) : 0.5+0.5*(clampVal-cMid)/(cMax-cMid);
+    } else {
+      t = (clampVal-cMin)/(cMax-cMin||1);
+    }
+  } else {
+    t = Math.max(0,Math.min(1,(val-mn)/(mx-mn||1)));
+  }
+  const idx = t*(ramp.length-1);
+  const lo = Math.floor(idx), hi = Math.min(Math.ceil(idx), ramp.length-1);
+  if (lo===hi) return ramp[lo];
+  return lerpHex(ramp[lo], ramp[hi], idx-lo);
+}
+
+function lerpHex(a, b, t) {
+  const pa=parseInt(a.replace('#',''),16), pb=parseInt(b.replace('#',''),16);
+  if (isNaN(pa)||isNaN(pb)) return a;
+  const r=Math.round(((pa>>16)&255)+(((pb>>16)&255)-((pa>>16)&255))*t);
+  const g=Math.round(((pa>>8)&255)+(((pb>>8)&255)-((pa>>8)&255))*t);
+  const bv=Math.round((pa&255)+((pb&255)-(pa&255))*t);
+  return `rgb(${r},${g},${bv})`;
+}
+
+function hexAlpha(hex, a) {
+  if (!hex || hex.length < 4) return `rgba(79,142,247,${a})`;
+  let h = hex.replace('#','');
+  if (h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;
+}
+
+function getCatColors(n, theme) {
+  const pal = THEMES[theme] || THEMES["Dark Scientific"];
+  return Array.from({length:n},(_,i)=>pal[i%pal.length]);
+}
+
+// ═══════════════════════════════════════════════════════════
+// STYLE PRESETS (Seaborn-inspired)
+// ═══════════════════════════════════════════════════════════
+const PRESETS = {
+  darkgrid: { name:"Dark Grid", desc:"Dark bg + grid lines", plotBg:"#1e2130", textColor:"#dde1f0", axisColor:"#555c7a", gridColor:"#2a2d3e", gridAlpha:1, showGrid:true, fontSize:12, titleSize:15, labelSize:11, tickSize:10, fontFamily:"Inter", legendBg:"rgba(30,33,48,0.85)" },
+  whitegrid: { name:"White Grid", desc:"Clean white + grid", plotBg:"#ffffff", textColor:"#222222", axisColor:"#999999", gridColor:"#e5e5e5", gridAlpha:1, showGrid:true, fontSize:12, titleSize:15, labelSize:11, tickSize:10, fontFamily:"Inter", legendBg:"rgba(255,255,255,0.9)" },
+  dark: { name:"Dark", desc:"Dark, no grid", plotBg:"#1a1a2e", textColor:"#e8e8f0", axisColor:"#444455", gridColor:"#222233", gridAlpha:0, showGrid:false, fontSize:12, titleSize:15, labelSize:11, tickSize:10, fontFamily:"Inter", legendBg:"rgba(26,26,46,0.9)" },
+  white: { name:"White", desc:"Clean minimal", plotBg:"#ffffff", textColor:"#333333", axisColor:"#cccccc", gridColor:"#f0f0f0", gridAlpha:0, showGrid:false, fontSize:12, titleSize:15, labelSize:11, tickSize:10, fontFamily:"Inter", legendBg:"rgba(255,255,255,0.9)" },
+  ticks: { name:"Ticks", desc:"Minimal, ticks only", plotBg:"#fafafa", textColor:"#222222", axisColor:"#333333", gridColor:"#eeeeee", gridAlpha:0, showGrid:false, fontSize:12, titleSize:15, labelSize:11, tickSize:10, fontFamily:"Inter", legendBg:"rgba(250,250,250,0.9)" },
+  poster: { name:"Poster", desc:"Large text, bold", plotBg:"#ffffff", textColor:"#111111", axisColor:"#555555", gridColor:"#dddddd", gridAlpha:1, showGrid:true, fontSize:18, titleSize:24, labelSize:16, tickSize:14, fontFamily:"Inter", legendBg:"rgba(255,255,255,0.95)" },
+  talk: { name:"Talk", desc:"Presentation size", plotBg:"#1e2130", textColor:"#dde1f0", axisColor:"#555c7a", gridColor:"#2a2d3e", gridAlpha:1, showGrid:true, fontSize:16, titleSize:20, labelSize:14, tickSize:12, fontFamily:"Inter", legendBg:"rgba(30,33,48,0.9)" },
+  paper: { name:"Paper", desc:"Compact for print", plotBg:"#ffffff", textColor:"#111111", axisColor:"#aaaaaa", gridColor:"#e8e8e8", gridAlpha:1, showGrid:true, fontSize:10, titleSize:13, labelSize:10, tickSize:9, fontFamily:"Inter", legendBg:"rgba(255,255,255,0.9)" },
+  notebook: { name:"Notebook", desc:"Jupyter-like", plotBg:"#f8f8f8", textColor:"#333333", axisColor:"#aaaaaa", gridColor:"#e0e0e0", gridAlpha:1, showGrid:true, fontSize:11, titleSize:14, labelSize:11, tickSize:10, fontFamily:"JetBrains Mono", legendBg:"rgba(248,248,248,0.9)" },
+};
+
+// ═══════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════
+function uid() { return Math.random().toString(36).substr(2,8); }
+function notify(msg,type='ok') {
+  const el=document.createElement('div');
+  el.className=`notif ${type}`;
+  el.textContent=msg;
+  document.getElementById('notif').appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
+function toggleSb(id,hdr) {
+  const b=document.getElementById(id);
+  b.classList.toggle('closed');
+  const arr=hdr.querySelector('.sb-hdr-arrow');
+  if(arr) arr.classList.toggle('open');
+}
+function visData() { return S.data.filter((_,i)=>!S.hiddenRows.has(i)); }
+function numCol(col) { return visData().map(r=>parseFloat(r[col])).filter(v=>!isNaN(v)); }
+function isNumericCol(col) { return numCol(col).length > visData().length * 0.5; }
+function catValues(col) { return [...new Set(visData().map(r=>String(r[col]||'')).filter(v=>v!==''))]; }
+function fmt(n,d=3) { return isNaN(n)?'–':parseFloat(n.toFixed(d)).toString(); }
+function colSel(col, opts, none=false) {
+  const n = none ? '<option value="">None</option>' : '';
+  return n + opts.map(c=>`<option value="${c}" ${c===col?'selected':''}>${c}</option>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILE HANDLING
+// ═══════════════════════════════════════════════════════════
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag');
+  if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+}
+function handleFile(inp) { if(inp.files[0]) processFile(inp.files[0]); }
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let data, cols;
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        const lines = e.target.result.trim().split('\n');
+        cols = lines[0].split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+        data = lines.slice(1).map(row=>{
+          const vals = row.split(',').map(v=>v.trim().replace(/^"|"$/g,''));
+          const obj={};
+          cols.forEach((c,i)=>{ obj[c]=vals[i]!==undefined?vals[i]:''; });
+          return obj;
+        });
+      } else {
+        const wb = XLSX.read(e.target.result,{type:'binary'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+        cols = raw[0].map(String);
+        data = raw.slice(1).filter(r=>r.some(v=>v!==undefined&&v!=='')).map(row=>{
+          const obj={};
+          cols.forEach((c,i)=>{ obj[c]=row[i]!==undefined?row[i]:''; });
+          return obj;
+        });
+      }
+      S.cols = cols; S.data = data; S.hiddenRows = new Set();
+      renderDataTable();
+      document.getElementById('data-badge').textContent = `${data.length}r × ${cols.length}c`;
+      document.getElementById('row-actions').style.display='flex';
+      notify(`Loaded ${data.length} rows, ${cols.length} columns`);
+    } catch(err) { notify('Error: '+err.message,'err'); }
+  };
+  if (file.name.toLowerCase().endsWith('.csv')) reader.readAsText(file);
+  else reader.readAsBinaryString(file);
+}
+
+function renderDataTable() {
+  const wrap = document.getElementById('dtable-wrap');
+  wrap.style.display='block';
+  document.getElementById('dth').innerHTML = `<tr><th>#</th>${S.cols.map(c=>`<th>${c}</th>`).join('')}</tr>`;
+  document.getElementById('dtb').innerHTML = S.data.map((r,i)=>`
+    <tr class="${S.hiddenRows.has(i)?'hr':''}" id="drow-${i}">
+      <td><span class="rt" onclick="toggleRow(${i})" title="Toggle row">${S.hiddenRows.has(i)?'○':'●'}</span>${i+1}</td>
+      ${S.cols.map(c=>`<td>${r[c]!==undefined?r[c]:''}</td>`).join('')}
+    </tr>`).join('');
+}
+function toggleRow(i) { S.hiddenRows.has(i)?S.hiddenRows.delete(i):S.hiddenRows.add(i); renderDataTable(); }
+function showAllRows() { S.hiddenRows.clear(); renderDataTable(); }
+function hideAllRows() { S.data.forEach((_,i)=>S.hiddenRows.add(i)); renderDataTable(); }
+
+// ═══════════════════════════════════════════════════════════
+// REGRESSION ENGINE
+// ═══════════════════════════════════════════════════════════
+function fitRegression(x1vals, x2vals, yvals, includeSecond=true, includeInteraction=true) {
+  // Build design matrix: [1, x1, x2, x1*x2, x1^2, x2^2]
+  const n = x1vals.length;
+  if (n < 3) return null;
+  const termNames = ['intercept','x1','x2'];
+  if (includeInteraction) termNames.push('x1*x2');
+  if (includeSecond) { termNames.push('x1^2'); termNames.push('x2^2'); }
+
+  const buildRow = (x1,x2) => {
+    const r = [1, x1, x2];
+    if (includeInteraction) r.push(x1*x2);
+    if (includeSecond) { r.push(x1*x1); r.push(x2*x2); }
+    return r;
+  };
+
+  const X = x1vals.map((v,i)=>buildRow(v,x2vals[i]));
+  const y = yvals;
+  const p = termNames.length;
+
+  // X^T X
+  const XTX = Array.from({length:p},(_,i)=>Array.from({length:p},(_,j)=>X.reduce((s,r)=>s+r[i]*r[j],0)));
+  const XTy = Array.from({length:p},(_,i)=>X.reduce((s,r,k)=>s+r[i]*y[k],0));
+
+  try {
+    const coefs = gaussSolve(XTX, XTy);
+    if (!coefs) return null;
+    // R^2
+    const ymean = y.reduce((s,v)=>s+v,0)/n;
+    const sst = y.reduce((s,v)=>s+(v-ymean)**2,0);
+    const sse = X.reduce((s,r,i)=>s+(y[i]-r.reduce((a,v,j)=>a+v*coefs[j],0))**2,0);
+    const r2 = 1-sse/sst;
+    const rmse = Math.sqrt(sse/(n-p));
+    return { coefs, termNames, r2, rmse, n,
+      eval: (x1,x2) => buildRow(x1,x2).reduce((s,v,i)=>s+v*coefs[i],0),
+      formula: () => {
+        const round = v => { const r=Math.round(v*10000)/10000; return r>=0?`+${r}`:`${r}`; };
+        const tmap = {'intercept':'','x1':'·x₁','x2':'·x₂','x1*x2':'·x₁x₂','x1^2':'·x₁²','x2^2':'·x₂²'};
+        return 'ŷ = ' + coefs.map((c,i)=>{ if(Math.abs(c)<1e-10)return''; return `${round(c)}${tmap[termNames[i]]}`; }).filter(Boolean).join(' ');
+      }
+    };
+  } catch(e) { return null; }
+}
+
+function gaussSolve(A, b) {
+  // Pure JS Gaussian elimination with partial pivoting - no external library
+  const n = b.length;
+  const M = A.map((row, i) => [...row, b[i]]);
+  for (let col = 0; col < n; col++) {
+    let maxRow = col;
+    for (let r = col+1; r < n; r++) if (Math.abs(M[r][col]) > Math.abs(M[maxRow][col])) maxRow = r;
+    [M[col], M[maxRow]] = [M[maxRow], M[col]];
+    if (Math.abs(M[col][col]) < 1e-14) return null;
+    for (let row = col+1; row < n; row++) {
+      const f = M[row][col] / M[col][col];
+      for (let j = col; j <= n; j++) M[row][j] -= f * M[col][j];
+    }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n-1; i >= 0; i--) {
+    x[i] = M[i][n];
+    for (let j = i+1; j < n; j++) x[i] -= M[i][j] * x[j];
+    x[i] /= M[i][i];
+  }
+  return x;
+}
+
+function fitPolyTrendline(xs, ys, order=1) {
+  const n = xs.length;
+  if (n < 2) return null;
+  order = Math.min(order, Math.min(4, n-1));
+  const p = order + 1;
+  // Build normal equations (X^T X) c = X^T y
+  const A = xs.map(x => Array.from({length:p}, (_,j) => Math.pow(x,j)));
+  const AT = Array.from({length:p}, (_,j) => A.map(r => r[j]));
+  const ATA = AT.map(r1 => Array.from({length:p}, (_,j) => r1.reduce((s,v,k) => s + v*A[k][j], 0)));
+  const ATb = AT.map(r => r.reduce((s,v,i) => s + v*ys[i], 0));
+  const c = gaussSolve(ATA, ATb);
+  if (!c) return x => ys.reduce((s,v)=>s+v,0)/ys.length;
+  return x => c.reduce((s,ci,i) => s + ci*Math.pow(x,i), 0);
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLOT DEFAULTS
+// ═══════════════════════════════════════════════════════════
+const PDEFS = {
+  _common: {
+    title:'Plot', xTitle:'', yTitle:'', zTitle:'',
+    xMin:'', xMax:'', yMin:'', yMax:'',
+    xLog:false, yLog:false,
+    preset:'darkgrid', colorTheme:'Dark Scientific',
+    showLegend:true, legendPos:'top-right',
+    aspectRatio:1.6,
+    // from preset (will be overwritten by preset)
+    plotBg:'#1e2130', textColor:'#dde1f0', axisColor:'#555c7a',
+    gridColor:'#2a2d3e', gridAlpha:1, showGrid:true,
+    fontSize:12, titleSize:15, labelSize:11, tickSize:10,
+    fontFamily:'Inter', legendBg:'rgba(30,33,48,0.85)',
+  },
+  scatter: { xCol:'', yCol:'', colorCol:'', sizeCol:'', shapeCol:'', catCol:'', mainColor:'#4F8EF7', markerSize:5, markerShape:'circle', markerOpacity:0.85, showTrendline:false, trendOrder:1, catTrendlines:{}, cmMin:'', cmMid:'', cmMax:'' },
+  line: { xCol:'', yCol:'', colorCol:'', catCol:'', mainColor:'#4F8EF7', lineWidth:2, lineStyle:'solid', markerSize:3, showMarkers:true, fill:false, fillOpacity:0.15, showTrendline:false, trendOrder:1, catTrendlines:{} },
+  bar: { xCol:'', yCol:'', catCol:'', aggFunc:'mean', mainColor:'#4F8EF7', barWidth:0.75, horizontal:false },
+  barstack: { xCol:'', yCols:[], aggFunc:'sum' },
+  bargroup: { xCol:'', yCols:[], aggFunc:'mean' },
+  box: { xCol:'', yCol:'', catCol:'', mainColor:'#4F8EF7', showOutliers:true, showMean:false },
+  contour: { x1Col:'', x2Col:'', yCol:'', sliderCol:'', sliderVal:null, includeSecond:true, includeInteraction:true, nGrid:80, nContours:15, filled:true, colormap:'viridis', regResult:null, xMin:'', xMax:'', yMin:'', yMax:'', cmMin:'', cmMid:'', cmMax:'', labelContours:false, contourLabelSize:9 },
+  surface3d: { x1Col:'', x2Col:'', yCol:'', sliderCol:'', sliderVal:null, includeSecond:true, includeInteraction:true, nGrid:50, colormap:'viridis', wireframe:false, opacity:1.0, regResult:null, xMin:'', xMax:'', yMin:'', yMax:'', showSurfaceContours:false, nSurfaceContours:8, labelSurfaceContours:true, cmMin:'', cmMid:'', cmMax:'', showTicks3d:true },
+};
+
+function mkPlot(type) {
+  const common = JSON.parse(JSON.stringify(PDEFS._common));
+  const specific = JSON.parse(JSON.stringify(PDEFS[type]||{}));
+  const p = { id:uid(), type, ...common, ...specific };
+  applyPreset(p, p.preset);
+  // auto-assign columns
+  const nums = S.cols.filter(c=>isNumericCol(c));
+  const cats = S.cols.filter(c=>!isNumericCol(c));
+  if (type==='scatter'||type==='line') {
+    p.xCol=nums[0]||''; p.yCol=nums[1]||'';
+    if(cats[0]) p.catCol=cats[0];
+  } else if (type==='bar') { p.xCol=cats[0]||nums[0]||''; p.yCol=nums[0]||''; }
+  else if (type==='barstack'||type==='bargroup') { p.xCol=cats[0]||nums[0]||''; p.yCols=nums.slice(0,3); }
+  else if (type==='box') { p.xCol=cats[0]||''; p.yCol=nums[0]||''; }
+  else if (type==='contour'||type==='surface3d') {
+    p.x1Col=nums[0]||''; p.x2Col=nums[1]||''; p.yCol=nums[2]||nums[0]||'';
+    }
+  return p;
+}
+
+function applyPreset(p, presetName) {
+  const pr = PRESETS[presetName] || PRESETS.darkgrid;
+  p.preset = presetName;
+  Object.assign(p, { plotBg:pr.plotBg, textColor:pr.textColor, axisColor:pr.axisColor, gridColor:pr.gridColor, gridAlpha:pr.gridAlpha, showGrid:pr.showGrid, fontSize:pr.fontSize, titleSize:pr.titleSize, labelSize:pr.labelSize, tickSize:pr.tickSize, fontFamily:pr.fontFamily, legendBg:pr.legendBg });
+}
+
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// PLOT MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+function addPlot(type) {
+  if (!S.data.length) { notify('Import data first','err'); return; }
+  const p = mkPlot(type);
+  S.plots.push(p); S.active=p.id;
+  renderPlotList();
+  renderCanvas(p.id);
+  openRp(p.id);
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('plot-count').textContent=`(${S.plots.length})`;
+}
+
+function renderPlotList() {
+  const icons={scatter:'⊹',line:'⟋',bar:'▐',barstack:'▬',bargroup:'▩',box:'□',contour:'◎',surface3d:'◇'};
+  document.getElementById('plot-list').innerHTML = S.plots.map(p=>`
+    <div class="pl-item ${p.id===S.active?'active':''}" onclick="selectPlot('${p.id}')">
+      <span style="font-size:13px;color:${p.id===S.active?'var(--accent)':'var(--text3)'}">${icons[p.type]||'○'}</span>
+      <span class="pl-item-name">${p.title}</span>
+      <span class="pl-item-type">${p.type}</span>
+      <span onclick="event.stopPropagation();deletePlot('${p.id}')" style="color:var(--text3);cursor:pointer;font-size:12px;padding:2px 4px" title="Delete">✕</span>
+    </div>`).join('');
+  document.getElementById('plot-count').textContent=`(${S.plots.length})`;
+}
+
+function selectPlot(id) { S.active=id; renderPlotList(); openRp(id); }
+function deletePlot(id) {
+  if (S.charts[id]) { try{S.charts[id].destroy()}catch(e){}; delete S.charts[id]; }
+  S.plots=S.plots.filter(p=>p.id!==id);
+  const el=document.getElementById(`pc-${id}`);
+  if(el) el.remove();
+  if (S.active===id) S.active=S.plots[0]?.id||null;
+  if (!S.plots.length) document.getElementById('empty-state').style.display='';
+  renderPlotList();
+  if(S.active) openRp(S.active);
+  else document.getElementById('rp-body').innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:11px">No plots</div>';
+}
+
+function renderCanvas(id) {
+  const container=document.getElementById('plots-container');
+  if(id) {
+    const p=S.plots.find(x=>x.id===id);
+    if(!p) return;
+    let card=document.getElementById(`pc-${id}`);
+    if(!card) {
+      card=document.createElement('div');
+      card.id=`pc-${id}`;
+      card.className='chart-card';
+      card.innerHTML=`<div class="cc-hdr"><input class="cc-title" value="${p.title}" onchange="S.plots.find(x=>x.id==='${id}').title=this.value;renderPlotList()" placeholder="Plot title..."><div class="cc-acts"><button class="btn xs" onclick="openRp('${id}')">⚙</button><button class="btn xs" onclick="dlPlot('${id}')">↓</button><button class="btn xs danger" onclick="deletePlot('${id}')">✕</button></div></div><div id="cw-${id}" class="cv-wrap"></div>`;
+      container.appendChild(card);
+    }
+    dispatchRender(p);
+  }
+}
+
+function renderAll() { S.plots.forEach(p=>{ renderCanvas(p.id); }); }
+function renderActive() { if(S.active) renderCanvas(S.active); }
+
+function dispatchRender(p) {
+  const wrap=document.getElementById(`cw-${p.id}`);
+  if(!wrap) return;
+  if (p.type==='surface3d') { render3D(p,wrap); return; }
+  if (p.type==='contour') { renderContour(p,wrap); return; }
+  if (p.type==='box') { renderBox(p,wrap); return; }
+  renderCJ(p,wrap);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHART.JS SHARED HELPERS
+// ═══════════════════════════════════════════════════════════
+function cjScales(p, extraX={}, extraY={}) {
+  const gc = p.showGrid ? hexAlpha(p.gridColor||'#2a2d3e', parseFloat(p.gridAlpha)||1) : 'transparent';
+  const tf = { family:p.fontFamily||'Inter', size:parseInt(p.tickSize)||10 };
+  const lf = { family:p.fontFamily||'Inter', size:parseInt(p.labelSize)||11 };
+  const tc = p.textColor||'#dde1f0'; const ac = p.axisColor||'#555c7a';
+  const x = { type:p.xLog?'logarithmic':'linear', grid:{color:gc,lineWidth:.5}, ticks:{color:tc,font:tf,maxTicksLimit:8}, border:{color:ac}, title:{display:!!(p.xTitle||p.xCol),text:p.xTitle||p.xCol||'',color:tc,font:lf}, ...extraX };
+  const y = { type:p.yLog?'logarithmic':'linear', grid:{color:gc,lineWidth:.5}, ticks:{color:tc,font:tf,maxTicksLimit:8}, border:{color:ac}, title:{display:!!(p.yTitle||p.yCol),text:p.yTitle||p.yCol||'',color:tc,font:lf}, ...extraY };
+  if(p.xMin!=='') x.min=parseFloat(p.xMin);
+  if(p.xMax!=='') x.max=parseFloat(p.xMax);
+  if(p.yMin!=='') y.min=parseFloat(p.yMin);
+  if(p.yMax!=='') y.max=parseFloat(p.yMax);
+  return {x,y};
+}
+
+function cjLegend(p) {
+  if(!p.showLegend) return {display:false};
+  const posMap={'top-right':{position:'top',align:'end'},'top-left':{position:'top',align:'start'},'bottom':{position:'bottom',align:'center'},'right':{position:'right',align:'center'}};
+  const pos=posMap[p.legendPos]||{position:'top',align:'end'};
+  return {display:true,position:pos.position,align:pos.align,labels:{color:p.textColor||'#dde1f0',font:{family:p.fontFamily||'Inter',size:parseInt(p.tickSize)||10},boxWidth:10,boxHeight:10}};
+}
+
+function cjPlugins(p) {
+  return { legend:cjLegend(p), title:{display:false}, tooltip:{bodyFont:{family:p.fontFamily||'Inter'},titleFont:{family:p.fontFamily||'Inter'}} };
+}
+
+function bgPlugin(p) {
+  return { id:'bg-'+p.id, beforeDraw(c){ const ctx=c.ctx; ctx.save(); ctx.fillStyle=p.plotBg||'#1e2130'; ctx.fillRect(0,0,c.width,c.height); ctx.restore(); } };
+}
+
+function mountCJ(p, wrap, config) {
+  if (S.charts[p.id]) { try{S.charts[p.id].destroy()}catch(e){} delete S.charts[p.id]; }
+  wrap.innerHTML=`<canvas id="cv-${p.id}" role="img" aria-label="${p.title}"></canvas>`;
+  const canvas=document.getElementById(`cv-${p.id}`);
+  const H=Math.max(300,Math.round((wrap.offsetWidth||600)/(parseFloat(p.aspectRatio)||1.6)));
+  canvas.parentElement.style.height=H+'px';
+  config.options = config.options||{};
+  config.options.responsive=true; config.options.maintainAspectRatio=false;
+  config.options.animation={duration:300};
+  config.options.plugins=config.options.plugins||{};
+  Object.assign(config.options.plugins, cjPlugins(p));
+  config.options.layout={padding:parseInt(p.fontSize)||12};
+  config.plugins=[bgPlugin(p)];
+  S.charts[p.id]=new Chart(canvas,config);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCATTER PLOT
+// ═══════════════════════════════════════════════════════════
+function renderCJ(p, wrap) {
+  if(p.type==='scatter') renderScatter(p,wrap);
+  else if(p.type==='line') renderLine(p,wrap);
+  else if(p.type==='bar') renderBar(p,wrap);
+  else if(p.type==='barstack'||p.type==='bargroup') renderBarMulti(p,wrap);
+}
+
+function renderScatter(p, wrap) {
+  const vd=visData();
+  const datasets=[];
+  const shapes=['circle','rect','triangle','star','cross','rectRot','crossRot'];
+
+  if (p.catCol && catValues(p.catCol).length>1) {
+    const cats=catValues(p.catCol);
+    const colors=getCatColors(cats.length, p.colorTheme||'Dark Scientific');
+    cats.forEach((cat,ci)=>{
+      const rows=vd.filter(r=>String(r[p.catCol]||'')==cat);
+      const pts=rows.map(r=>({x:parseFloat(r[p.xCol]),y:parseFloat(r[p.yCol])})).filter(d=>!isNaN(d.x)&&!isNaN(d.y));
+      if(!pts.length) return;
+      const col=colors[ci];
+      datasets.push({label:cat,data:pts,backgroundColor:hexAlpha(col,parseFloat(p.markerOpacity)||0.85),borderColor:col,pointRadius:parseInt(p.markerSize)||5,pointStyle:shapes[ci%shapes.length],borderWidth:1});
+      // Per-category trendline
+      if(p.catTrendlines&&p.catTrendlines[cat]) {
+        const xs=pts.map(d=>d.x),ys=pts.map(d=>d.y);
+        const fn=fitPolyTrendline(xs,ys,parseInt(p.catTrendlines[cat])||1);
+        if(fn){ const mn=Math.min(...xs),mx=Math.max(...xs),step=(mx-mn)/99;
+          const td=Array.from({length:100},(_,i)=>({x:mn+i*step,y:fn(mn+i*step)}));
+          datasets.push({label:`${cat} trend`,data:td,type:'line',showLine:true,borderColor:hexAlpha(col,.7),backgroundColor:'transparent',pointRadius:0,borderWidth:1.5,borderDash:[5,3],tension:0.3}); }
+      }
+    });
+  } else {
+    const pts=vd.map(r=>({x:parseFloat(r[p.xCol]),y:parseFloat(r[p.yCol])})).filter(d=>!isNaN(d.x)&&!isNaN(d.y));
+    let bgs=pts.map(()=>hexAlpha(p.mainColor||'#4F8EF7',parseFloat(p.markerOpacity)||0.85));
+    // color by numeric col
+    if(p.colorCol&&isNumericCol(p.colorCol)){
+      const cv=vd.map(r=>parseFloat(r[p.colorCol]));
+      const mn=Math.min(...cv.filter(v=>!isNaN(v))),mx=Math.max(...cv.filter(v=>!isNaN(v)));
+      bgs=cv.map(v=>isNaN(v)?hexAlpha(p.mainColor,.85):getColorFromMap(v,mn,mx,p.colormap||'viridis',p));
+    }
+    const sizeArr = p.sizeCol&&isNumericCol(p.sizeCol)?(() => {
+      const sv=vd.map(r=>parseFloat(r[p.sizeCol]));
+      const mn=Math.min(...sv.filter(v=>!isNaN(v))),mx=Math.max(...sv.filter(v=>!isNaN(v)));
+      return sv.map(v=>isNaN(v)?parseInt(p.markerSize)||5:3+((v-mn)/(mx-mn||1))*12);
+    })():null;
+    datasets.push({label:p.yCol||'Y',data:pts,backgroundColor:bgs,borderColor:bgs,pointRadius:sizeArr||(parseInt(p.markerSize)||5),pointStyle:p.markerShape||'circle',borderWidth:1});
+    if(p.showTrendline){
+      const xs=pts.map(d=>d.x),ys=pts.map(d=>d.y);
+      const fn=fitPolyTrendline(xs,ys,parseInt(p.trendOrder)||1);
+      if(fn){ const mn=Math.min(...xs),mx=Math.max(...xs),step=(mx-mn)/99;
+        const td=Array.from({length:100},(_,i)=>({x:mn+i*step,y:fn(mn+i*step)}));
+        datasets.push({label:'Trend',data:td,type:'line',showLine:true,borderColor:'rgba(245,166,35,.85)',backgroundColor:'transparent',pointRadius:0,borderWidth:2,borderDash:[6,3],tension:0.3}); }
+    }
+  }
+  mountCJ(p,wrap,{type:'scatter',data:{datasets},options:{scales:cjScales(p)}});
+}
+
+// ═══════════════════════════════════════════════════════════
+// LINE PLOT
+// ═══════════════════════════════════════════════════════════
+function renderLine(p, wrap) {
+  const vd=visData();
+  const datasets=[];
+  const dashMap={solid:[],dashed:[6,4],dotted:[2,4]};
+
+  if (p.catCol && catValues(p.catCol).length>1) {
+    const cats=catValues(p.catCol);
+    const colors=getCatColors(cats.length,p.colorTheme||'Dark Scientific');
+    cats.forEach((cat,ci)=>{
+      const rows=vd.filter(r=>String(r[p.catCol]||'')==cat).sort((a,b)=>parseFloat(a[p.xCol])-parseFloat(b[p.xCol]));
+      const labels=rows.map(r=>r[p.xCol]);
+      const ys=rows.map(r=>parseFloat(r[p.yCol]));
+      const col=colors[ci];
+      datasets.push({label:cat,data:ys,borderColor:col,backgroundColor:p.fill?hexAlpha(col,parseFloat(p.fillOpacity)||.15):'transparent',fill:p.fill,borderWidth:parseFloat(p.lineWidth)||2,borderDash:dashMap[p.lineStyle]||[],pointRadius:p.showMarkers?(parseInt(p.markerSize)||3):0,tension:.2});
+      if(p.catTrendlines&&p.catTrendlines[cat]) {
+        const xs=rows.map(r=>parseFloat(r[p.xCol])).filter(v=>!isNaN(v));
+        const yvals=rows.map(r=>parseFloat(r[p.yCol])).filter(v=>!isNaN(v));
+        const fn=fitPolyTrendline(xs,yvals,parseInt(p.catTrendlines[cat])||1);
+        if(fn){ const mn=Math.min(...xs),mx=Math.max(...xs),step=(mx-mn)/49;
+          const td=Array.from({length:50},(_,i)=>fn(mn+i*step));
+          const tlabels=Array.from({length:50},(_,i)=>String(Math.round((mn+i*step)*100)/100));
+          datasets.push({label:`${cat} trend`,data:td,labels:tlabels,borderColor:hexAlpha(col,.6),backgroundColor:'transparent',pointRadius:0,borderWidth:1.5,borderDash:[5,3]}); }
+      }
+    });
+    const allRows=vd.sort((a,b)=>parseFloat(a[p.xCol])-parseFloat(b[p.xCol]));
+    const xlabels=[...new Set(allRows.map(r=>r[p.xCol]))];
+    mountCJ(p,wrap,{type:'line',data:{labels:xlabels,datasets},options:{scales:cjScales(p,{type:'category'},{} )}});
+  } else {
+    const rows=vd.sort((a,b)=>parseFloat(a[p.xCol])-parseFloat(b[p.xCol]));
+    const labels=rows.map(r=>r[p.xCol]);
+    const ys=rows.map(r=>parseFloat(r[p.yCol]));
+    const col=p.mainColor||'#4F8EF7';
+    datasets.push({label:p.yCol||'Y',data:ys,borderColor:col,backgroundColor:p.fill?hexAlpha(col,parseFloat(p.fillOpacity)||.15):'transparent',fill:p.fill,borderWidth:parseFloat(p.lineWidth)||2,borderDash:dashMap[p.lineStyle]||[],pointRadius:p.showMarkers?(parseInt(p.markerSize)||3):0,tension:.2});
+    if(p.showTrendline){ const xs=rows.map(r=>parseFloat(r[p.xCol]));
+      const fn=fitPolyTrendline(xs,ys,parseInt(p.trendOrder)||1);
+      if(fn){ const mn=Math.min(...xs.filter(v=>!isNaN(v))),mx=Math.max(...xs.filter(v=>!isNaN(v)));
+        const step=(mx-mn)/49;
+        datasets.push({label:'Trend',data:Array.from({length:50},(_,i)=>fn(mn+i*step)),borderColor:'rgba(245,166,35,.85)',backgroundColor:'transparent',pointRadius:0,borderWidth:2,borderDash:[6,3]});
+      }
+    }
+    mountCJ(p,wrap,{type:'line',data:{labels,datasets},options:{scales:cjScales(p,{type:'category',ticks:{color:p.textColor||'#dde1f0',font:{family:p.fontFamily||'Inter',size:parseInt(p.tickSize)||10}},border:{color:p.axisColor||'#555c7a'},title:{display:!!(p.xTitle||p.xCol),text:p.xTitle||p.xCol||'',color:p.textColor||'#dde1f0',font:{family:p.fontFamily||'Inter',size:parseInt(p.labelSize)||11}},grid:{color:p.showGrid?hexAlpha(p.gridColor||'#2a2d3e',parseFloat(p.gridAlpha)||1):'transparent',lineWidth:.5}},{} )}});
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BAR CHART
+// ═══════════════════════════════════════════════════════════
+function renderBar(p, wrap) {
+  const vd=visData();
+  const aggFns={mean:a=>a.reduce((s,v)=>s+v,0)/a.length,sum:a=>a.reduce((s,v)=>s+v,0),min:a=>Math.min(...a),max:a=>Math.max(...a),count:a=>a.length};
+  const fn=aggFns[p.aggFunc||'mean']||aggFns.mean;
+  const groups={};
+  vd.forEach(r=>{ const k=String(r[p.xCol]||''); const v=parseFloat(r[p.yCol]); if(!isNaN(v)){ groups[k]=groups[k]||[]; groups[k].push(v); } });
+  const labels=Object.keys(groups);
+  const col=p.mainColor||'#4F8EF7';
+  const datasets=[{label:p.yCol||'Y',data:labels.map(k=>fn(groups[k])),backgroundColor:hexAlpha(col,.8),borderColor:col,borderWidth:1,borderRadius:4,borderSkipped:false}];
+  const catScale={type:'category',grid:{color:'transparent'},ticks:{color:p.textColor||'#dde1f0',font:{family:p.fontFamily||'Inter',size:parseInt(p.tickSize)||10}},border:{color:p.axisColor||'#555c7a'},title:{display:!!(p.xTitle||p.xCol),text:p.xTitle||p.xCol||'',color:p.textColor||'#dde1f0',font:{family:p.fontFamily||'Inter',size:parseInt(p.labelSize)||11}}};
+  const numScale=cjScales(p).y;
+  numScale.title={display:true,text:p.yTitle||`${p.aggFunc||'mean'}(${p.yCol})`,color:p.textColor||'#dde1f0',font:{family:p.fontFamily||'Inter',size:parseInt(p.labelSize)||11}};
+  const scales=p.horizontal?{x:numScale,y:catScale}:{x:catScale,y:numScale};
+  mountCJ(p,wrap,{type:'bar',data:{labels,datasets},options:{indexAxis:p.horizontal?'y':'x',scales,barPercentage:parseFloat(p.barWidth)||.75}});
+}
+
+function renderBarMulti(p, wrap) {
+  const vd=visData();
+  const yCols=p.yCols&&p.yCols.length?p.yCols:S.cols.filter(c=>isNumericCol(c)&&c!==p.xCol).slice(0,4);
+  const aggFns={mean:a=>a.reduce((s,v)=>s+v,0)/a.length,sum:a=>a.reduce((s,v)=>s+v,0)};
+  const fn=aggFns[p.aggFunc||'mean']||aggFns.mean;
+  const groups={};
+  vd.forEach(r=>{ const k=String(r[p.xCol]||''); groups[k]=groups[k]||{}; yCols.forEach(yc=>{ const v=parseFloat(r[yc]); if(!isNaN(v)){groups[k][yc]=groups[k][yc]||[];groups[k][yc].push(v);}});});
+  const labels=Object.keys(groups);
+  const colors=getCatColors(yCols.length,p.colorTheme||'Dark Scientific');
+  const datasets=yCols.map((yc,i)=>({label:yc,data:labels.map(k=>groups[k][yc]?fn(groups[k][yc]):0),backgroundColor:hexAlpha(colors[i],.8),borderColor:colors[i],borderWidth:1,borderRadius:3}));
+  const stacked=p.type==='barstack';
+  const catScale={type:'category',stacked,grid:{color:'transparent'},ticks:{color:p.textColor||'#dde1f0',font:{family:p.fontFamily||'Inter',size:parseInt(p.tickSize)||10}},border:{color:p.axisColor||'#555c7a'},title:{display:!!(p.xTitle||p.xCol),text:p.xTitle||p.xCol||'',color:p.textColor||'#dde1f0',font:{family:p.fontFamily||'Inter',size:parseInt(p.labelSize)||11}}};
+  const numScale={...cjScales(p).y,stacked};
+  mountCJ(p,wrap,{type:'bar',data:{labels,datasets},options:{scales:{x:catScale,y:numScale}}});
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// BOX PLOT (D3)
+// ═══════════════════════════════════════════════════════════
+function renderBox(p, wrap) {
+  const vd=visData();
+  wrap.innerHTML='';
+  const W=wrap.offsetWidth||600, H=Math.max(300,Math.round(W/(parseFloat(p.aspectRatio)||1.6)));
+  const m={top:30,right:30,bottom:55,left:60};
+  const svg=d3.select(wrap).append('svg').attr('width',W).attr('height',H).style('border-radius','8px').style('background',p.plotBg||'#1e2130');
+  const gc=p.showGrid?hexAlpha(p.gridColor||'#2a2d3e',parseFloat(p.gridAlpha)||1):'transparent';
+  const tc=p.textColor||'#dde1f0'; const ac=p.axisColor||'#555c7a';
+  const ff=p.fontFamily||'Inter'; const ts=parseInt(p.tickSize)||10; const ls=parseInt(p.labelSize)||11;
+
+  const groups={};
+  if(p.xCol) {
+    vd.forEach(r=>{ const k=String(r[p.xCol]||''); const v=parseFloat(r[p.yCol]); if(!isNaN(v)){groups[k]=groups[k]||[];groups[k].push(v);}});
+  } else { const vals=vd.map(r=>parseFloat(r[p.yCol])).filter(v=>!isNaN(v)); if(vals.length) groups[p.yCol||'data']=vals; }
+
+  const cats=Object.keys(groups);
+  if(!cats.length){ svg.append('text').attr('x',W/2).attr('y',H/2).attr('text-anchor','middle').attr('fill','#555c7a').attr('font-size',12).text('No data'); return; }
+
+  const x=d3.scaleBand().domain(cats).range([m.left,W-m.right]).padding(.35);
+  const allV=Object.values(groups).flat();
+  const ydomain=[d3.min(allV)*(d3.min(allV)<0?.97:1.0)-Math.abs(d3.min(allV))*.03, d3.max(allV)*1.05];
+  const y=d3.scaleLinear().domain([d3.min(allV)-Math.abs(d3.min(allV))*.08, d3.max(allV)*1.05]).range([H-m.bottom,m.top]).nice();
+
+  if(p.showGrid) svg.append('g').attr('transform',`translate(${m.left},0)`).call(d3.axisLeft(y).tickSize(-(W-m.left-m.right)).tickFormat('')).call(g=>{g.select('.domain').remove();g.selectAll('line').attr('stroke',gc).attr('stroke-width',.5);});
+  svg.append('g').attr('transform',`translate(0,${H-m.bottom})`).call(d3.axisBottom(x)).call(g=>{g.select('.domain').attr('stroke',ac);g.selectAll('text').attr('fill',tc).style('font-family',ff).style('font-size',ts+'px');g.selectAll('line').attr('stroke',ac);});
+  svg.append('g').attr('transform',`translate(${m.left},0)`).call(d3.axisLeft(y).ticks(6)).call(g=>{g.select('.domain').attr('stroke',ac);g.selectAll('text').attr('fill',tc).style('font-family',ff).style('font-size',ts+'px');g.selectAll('line').attr('stroke',ac);});
+
+  // Titles
+  if(p.title) svg.append('text').attr('x',W/2).attr('y',16).attr('text-anchor','middle').attr('fill',tc).style('font-family',ff).style('font-size',parseInt(p.titleSize)||15+'px').style('font-weight','600').text(p.title);
+  if(p.xTitle||p.xCol) svg.append('text').attr('x',W/2).attr('y',H-8).attr('text-anchor','middle').attr('fill',tc).style('font-family',ff).style('font-size',ls+'px').text(p.xTitle||p.xCol);
+  if(p.yTitle||p.yCol) svg.append('text').attr('transform','rotate(-90)').attr('x',-(H/2)).attr('y',14).attr('text-anchor','middle').attr('fill',tc).style('font-family',ff).style('font-size',ls+'px').text(p.yTitle||p.yCol);
+
+  const colors=getCatColors(cats.length,p.colorTheme||'Dark Scientific');
+  cats.forEach((cat,ci)=>{
+    const vals=[...groups[cat]].sort((a,b)=>a-b);
+    const q1=d3.quantile(vals,.25), med=d3.quantile(vals,.5), q3=d3.quantile(vals,.75);
+    const iqr=q3-q1;
+    const lo=Math.max(d3.min(vals),q1-1.5*iqr), hi=Math.min(d3.max(vals),q3+1.5*iqr);
+    const bx=x(cat), bw=x.bandwidth();
+    const col=cats.length>1?colors[ci]:(p.mainColor||'#4F8EF7');
+    svg.append('line').attr('x1',bx+bw/2).attr('x2',bx+bw/2).attr('y1',y(lo)).attr('y2',y(hi)).attr('stroke',hexAlpha(col,.5)).attr('stroke-width',1.5).attr('stroke-dasharray','3,2');
+    [{v:lo},{v:hi}].forEach(({v})=>svg.append('line').attr('x1',bx+bw*.25).attr('x2',bx+bw*.75).attr('y1',y(v)).attr('y2',y(v)).attr('stroke',col).attr('stroke-width',1.5));
+    svg.append('rect').attr('x',bx).attr('y',y(q3)).attr('width',bw).attr('height',Math.abs(y(q1)-y(q3))).attr('fill',hexAlpha(col,.2)).attr('stroke',col).attr('stroke-width',1.5).attr('rx',3);
+    svg.append('line').attr('x1',bx).attr('x2',bx+bw).attr('y1',y(med)).attr('y2',y(med)).attr('stroke',col).attr('stroke-width',2.5);
+    if(p.showOutliers) vals.filter(v=>v<lo||v>hi).forEach(v=>svg.append('circle').attr('cx',bx+bw/2+(Math.random()-.5)*bw*.3).attr('cy',y(v)).attr('r',3).attr('fill','none').attr('stroke',hexAlpha(col,.7)).attr('stroke-width',1.2));
+    if(p.showMean){ const mean=vals.reduce((s,v)=>s+v,0)/vals.length; svg.append('circle').attr('cx',bx+bw/2).attr('cy',y(mean)).attr('r',4).attr('fill',tc).attr('stroke',col).attr('stroke-width',1.5); }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONTOUR PLOT (D3 + auto-regression)
+// ═══════════════════════════════════════════════════════════
+function getRegData(p) {
+  const vd=visData();
+  let rows=vd;
+  // Apply slider filter
+  if(p.sliderCol && p.sliderVal!==null && p.sliderVal!==undefined && p.sliderVal!=='') {
+    const sv=parseFloat(p.sliderVal);
+    if(!isNaN(sv)) { rows=vd.filter(r=>{ const v=parseFloat(r[p.sliderCol]); return Math.abs(v-sv)<1e-9||isNaN(v); }); }
+    if(!rows.length) rows=vd;
+  }
+  const x1=rows.map(r=>parseFloat(r[p.x1Col])), x2=rows.map(r=>parseFloat(r[p.x2Col])), y=rows.map(r=>parseFloat(r[p.yCol]));
+  const valid=x1.map((_,i)=>!isNaN(x1[i])&&!isNaN(x2[i])&&!isNaN(y[i]));
+  const fx1=x1.filter((_,i)=>valid[i]), fx2=x2.filter((_,i)=>valid[i]), fy=y.filter((_,i)=>valid[i]);
+  if(fx1.length<3) return null;
+  return fitRegression(fx1,fx2,fy,p.includeSecond!==false,p.includeInteraction!==false);
+}
+
+function buildGrid(p, reg) {
+  const vd=visData();
+  const x1vals=vd.map(r=>parseFloat(r[p.x1Col])).filter(v=>!isNaN(v));
+  const x2vals=vd.map(r=>parseFloat(r[p.x2Col])).filter(v=>!isNaN(v));
+  const xMin=p.xMin!==''?parseFloat(p.xMin):Math.min(...x1vals);
+  const xMax=p.xMax!==''?parseFloat(p.xMax):Math.max(...x1vals);
+  const yMin=p.yMin!==''?parseFloat(p.yMin):Math.min(...x2vals);
+  const yMax=p.yMax!==''?parseFloat(p.yMax):Math.max(...x2vals);
+  const n=parseInt(p.nGrid)||80;
+  const zv=new Float64Array(n*n);
+  for(let j=0;j<n;j++) for(let i=0;i<n;i++) {
+    const xi=xMin+(xMax-xMin)*i/(n-1), yj=yMin+(yMax-yMin)*j/(n-1);
+    zv[j*n+i]=reg.eval(xi,yj);
+  }
+  return {xMin,xMax,yMin,yMax,n,zv};
+}
+
+function renderContour(p, wrap) {
+  wrap.innerHTML='';
+  if(!p.x1Col||!p.x2Col||!p.yCol){ wrap.innerHTML='<div style="padding:20px;color:var(--text3);font-size:11px">Configure X1, X2, Y columns</div>'; return; }
+  const reg=getRegData(p);
+  if(!reg){ wrap.innerHTML='<div style="padding:20px;color:var(--danger);font-size:11px">Need ≥3 valid data rows</div>'; return; }
+  p.regResult=reg;
+
+  const W=wrap.offsetWidth||600, H=Math.max(300,Math.round(W/(parseFloat(p.aspectRatio)||1.2)));
+  const m={top:30,right:80,bottom:55,left:60};
+  const svg=d3.select(wrap).append('svg').attr('width',W).attr('height',H).style('background',p.plotBg||'#1e2130').style('border-radius','8px');
+
+  const {xMin,xMax,yMin,yMax,n,zv}=buildGrid(p,reg);
+  const zMin=Math.min(...zv), zMax=Math.max(...zv);
+  const xs=d3.scaleLinear().domain([xMin,xMax]).range([m.left,W-m.right]);
+  const ys=d3.scaleLinear().domain([yMin,yMax]).range([H-m.bottom,m.top]);
+  const gc=p.showGrid?hexAlpha(p.gridColor||'#2a2d3e',parseFloat(p.gridAlpha)||1):'transparent';
+  const tc=p.textColor||'#dde1f0'; const ac=p.axisColor||'#555c7a';
+  const ff=p.fontFamily||'Inter'; const ts=parseInt(p.tickSize)||10; const ls=parseInt(p.labelSize)||11;
+
+  // Grid lines
+  if(p.showGrid){
+    svg.append('g').attr('transform',`translate(${m.left},0)`).call(d3.axisLeft(ys).tickSize(-(W-m.left-m.right)).tickFormat('')).call(g=>{g.select('.domain').remove();g.selectAll('line').attr('stroke',gc).attr('stroke-width',.5);});
+    svg.append('g').attr('transform',`translate(0,${H-m.bottom})`).call(d3.axisBottom(xs).tickSize(-(H-m.top-m.bottom)).tickFormat('')).call(g=>{g.select('.domain').remove();g.selectAll('line').attr('stroke',gc).attr('stroke-width',.5);});
+  }
+
+  // Contours
+  const nC=parseInt(p.nContours)||15;
+  const thresholds=Array.from({length:nC+1},(_,i)=>zMin+(zMax-zMin)*i/nC);
+  const contours=d3.contours().size([n,n]).thresholds(thresholds)(zv);
+  const xScale=(W-m.left-m.right)/n, yScale=(H-m.top-m.bottom)/n;
+  const transform=d3.geoTransform({point(px,py){this.stream.point(m.left+px*xScale,m.top+(n-py)*yScale);}});
+  const path=d3.geoPath(transform);
+
+  const defs=svg.append('defs');
+  if(p.filled) {
+    svg.selectAll('.cf').data(contours).join('path').attr('class','cf').attr('d',path).attr('fill',d=>getColorFromMap(d.value,zMin,zMax,p.colormap||'viridis',p)).attr('stroke','none');
+  }
+  svg.selectAll('.cl').data(contours).join('path').attr('class','cl').attr('d',path).attr('fill','none').attr('stroke',p.filled?'rgba(0,0,0,.25)':d=>getColorFromMap(d.value,zMin,zMax,p.colormap||'viridis',p)).attr('stroke-width',p.filled?.4:1.2);
+
+  // Contour labels
+  if(p.labelContours===true||p.labelContours==='true'){
+    const clSize=parseInt(p.contourLabelSize)||9;
+    const nC2=parseInt(p.nContours)||15;
+    const thresholds2=Array.from({length:nC2+1},(_,i)=>zMin+(zMax-zMin)*i/nC2);
+    // For each threshold find a good label position along the contour path
+    thresholds2.forEach(thresh=>{
+      // Walk grid edges to find a crossing point near the center of the plot
+      let bestX=null, bestY=null, bestDist=Infinity;
+      const cx=(m.left+(W-m.right))/2, cy=(m.top+(H-m.bottom))/2;
+      for(let j=0;j<n-1;j++) for(let i=0;i<n-1;i++){
+        const v00=zv[j*n+i], v10=zv[j*n+i+1];
+        if((v00>=thresh)!==(v10>=thresh)){
+          const t=(thresh-v00)/(v10-v00);
+          const px=m.left+(i+t)*xScale;
+          const py=m.top+(n-1-j)*yScale;
+          const d=(px-cx)**2+(py-cy)**2;
+          if(d<bestDist){bestDist=d;bestX=px;bestY=py;}
+        }
+      }
+      if(bestX===null) return;
+      const lbl=fmt(thresh,2);
+      const clFont=`${clSize}px ${ff}`;
+      svg.append('rect')
+        .attr('x',bestX-lbl.length*clSize*0.32-2).attr('y',bestY-clSize*.7)
+        .attr('width',lbl.length*clSize*0.64+4).attr('height',clSize*1.4)
+        .attr('fill',p.plotBg||'#1e2130').attr('opacity',.75).attr('rx',2);
+      svg.append('text')
+        .attr('x',bestX).attr('y',bestY+clSize*.38)
+        .attr('text-anchor','middle')
+        .attr('fill',tc).style('font-family',ff).style('font-size',clSize+'px').style('font-weight','600')
+        .text(lbl);
+    });
+  }
+
+  // Axes
+  svg.append('g').attr('transform',`translate(0,${H-m.bottom})`).call(d3.axisBottom(xs).ticks(6)).call(g=>{g.select('.domain').attr('stroke',ac);g.selectAll('text').attr('fill',tc).style('font-family',ff).style('font-size',ts+'px');g.selectAll('line').attr('stroke',ac);});
+  svg.append('g').attr('transform',`translate(${m.left},0)`).call(d3.axisLeft(ys).ticks(6)).call(g=>{g.select('.domain').attr('stroke',ac);g.selectAll('text').attr('fill',tc).style('font-family',ff).style('font-size',ts+'px');g.selectAll('line').attr('stroke',ac);});
+
+  // Titles
+  if(p.title) svg.append('text').attr('x',m.left+(W-m.left-m.right)/2).attr('y',16).attr('text-anchor','middle').attr('fill',tc).style('font-family',ff).style('font-size',parseInt(p.titleSize)||15+'px').style('font-weight','600').text(p.title);
+  svg.append('text').attr('x',m.left+(W-m.left-m.right)/2).attr('y',H-10).attr('text-anchor','middle').attr('fill',tc).style('font-family',ff).style('font-size',ls+'px').text(p.xTitle||p.x1Col||'x₁');
+  svg.append('text').attr('transform','rotate(-90)').attr('x',-(m.top+(H-m.top-m.bottom)/2)).attr('y',14).attr('text-anchor','middle').attr('fill',tc).style('font-family',ff).style('font-size',ls+'px').text(p.yTitle||p.x2Col||'x₂');
+
+  // Colorbar
+  const cbId='cb'+p.id; const cbX=W-m.right+14, cbH=H-m.top-m.bottom;
+  const cbGrad=defs.append('linearGradient').attr('id',cbId).attr('x1','0').attr('x2','0').attr('y1','0').attr('y2','1');
+  (COLORMAPS[p.colormap||'viridis']?.stops||[]).slice().reverse().forEach((c,i,a)=>cbGrad.append('stop').attr('offset',`${i/(a.length-1)*100}%`).attr('stop-color',c));
+  svg.append('rect').attr('x',cbX).attr('y',m.top).attr('width',12).attr('height',cbH).attr('fill',`url(#${cbId})`).attr('rx',2);
+  const cbDispMin = (p.cmMin!==''&&p.cmMin!==null&&p.cmMin!==undefined) ? parseFloat(p.cmMin) : zMin;
+  const cbDispMax = (p.cmMax!==''&&p.cmMax!==null&&p.cmMax!==undefined) ? parseFloat(p.cmMax) : zMax;
+  const cbS=d3.scaleLinear().domain([cbDispMax,cbDispMin]).range([m.top,m.top+cbH]);
+  svg.append('g').attr('transform',`translate(${cbX+12},0)`).call(d3.axisRight(cbS).ticks(5).tickSize(3)).call(g=>{g.select('.domain').remove();g.selectAll('text').attr('fill',tc).style('font-size',ts+'px').style('font-family',ff);g.selectAll('line').attr('stroke',ac);});
+
+    // (R² stats shown in Regression tab)
+}
+
+// ═══════════════════════════════════════════════════════════
+// 3D SURFACE (Three.js + auto-regression)
+// ═══════════════════════════════════════════════════════════
+function render3D(p, wrap) {
+  wrap.innerHTML=`<canvas id="cv3-${p.id}" style="width:100%;height:440px;border-radius:8px;display:block"></canvas>`;
+  setTimeout(()=>init3D(p,document.getElementById(`cv3-${p.id}`)),60);
+}
+
+function init3D(p, canvas) {
+  if(!canvas) return;
+  const reg=getRegData(p);
+  if(!reg){ canvas.insertAdjacentHTML('afterend','<div style="padding:20px;color:var(--danger);font-size:11px">Need ≥3 valid data rows</div>'); return; }
+  p.regResult=reg;
+  const {xMin,xMax,yMin,yMax,n,zv}=buildGrid(p,reg);
+  const zMin=Math.min(...zv), zMax=Math.max(...zv);
+  const W=canvas.offsetWidth||600, H=canvas.offsetHeight||440;
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
+  renderer.setSize(W,H); renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  const bgHex=parseInt((p.plotBg||'#1e2130').replace('#',''),16)||0x1e2130;
+  renderer.setClearColor(bgHex,1);
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(50,W/H,.01,1000);
+  scene.add(new THREE.AmbientLight(0xffffff,.7));
+  const dl=new THREE.DirectionalLight(0xffffff,.8); dl.position.set(2,4,3); scene.add(dl);
+  const norm=(v,mn,mx)=>(mx-mn===0)?.5:(v-mn)/(mx-mn);
+  const geo=new THREE.BufferGeometry();
+  const verts=[], cols=[], idxs=[];
+  for(let j=0;j<n;j++) for(let i=0;i<n;i++){
+    const idx=j*n+i;
+    verts.push(norm(xMin+(xMax-xMin)*i/(n-1),xMin,xMax)-.5, norm(zv[idx],zMin,zMax)-.5, norm(yMin+(yMax-yMin)*j/(n-1),yMin,yMax)-.5);
+    const c=getColorFromMap(zv[idx],zMin,zMax,p.colormap||'viridis',p);
+    const rgb=hexToRgb3(c); cols.push(rgb.r/255,rgb.g/255,rgb.b/255);
+  }
+  for(let j=0;j<n-1;j++) for(let i=0;i<n-1;i++){
+    const a=j*n+i,b=j*n+i+1,c=(j+1)*n+i,d=(j+1)*n+i+1;
+    idxs.push(a,b,d,a,d,c);
+  }
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
+  geo.setIndex(idxs); geo.computeVertexNormals();
+  const isWireframe = p.wireframe===true||p.wireframe==='true';
+  const mat=new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:parseFloat(p.opacity)<1,opacity:parseFloat(p.opacity)||1,wireframe:false,shininess:35});
+  const surfaceMesh=new THREE.Mesh(geo,mat);
+  if(!isWireframe) scene.add(surfaceMesh);
+  // Wireframe overlay (always add when wireframe enabled, can coexist with surface)
+  if(isWireframe){
+    const wfGeo=new THREE.WireframeGeometry(geo);
+    const wfMat=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.85});
+    scene.add(new THREE.LineSegments(wfGeo,wfMat));
+  } else {
+    // Subtle edge overlay even in solid mode
+    const edgeGeo=new THREE.WireframeGeometry(geo);
+    const edgeMat=new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:0.08});
+    scene.add(new THREE.LineSegments(edgeGeo,edgeMat));
+  }
+  // Surface contour lines projected onto the surface
+  if(p.showSurfaceContours===true||p.showSurfaceContours==='true'){
+    const nc=parseInt(p.nSurfaceContours)||8;
+    const thresholds=Array.from({length:nc},(_,i)=>zMin+(zMax-zMin)*(i+1)/(nc+1));
+    const contourGroup=new THREE.Group();
+    thresholds.forEach(thresh=>{
+      // March the grid to find iso-lines at this z threshold
+      const segments=[];
+      for(let j=0;j<n-1;j++) for(let i=0;i<n-1;i++){
+        const idx=(r,c)=>r*n+c;
+        const corners=[
+          {v:zv[idx(j,i)],   x:i/(n-1)-.5,   y:j/(n-1)-.5},
+          {v:zv[idx(j,i+1)], x:(i+1)/(n-1)-.5, y:j/(n-1)-.5},
+          {v:zv[idx(j+1,i+1)],x:(i+1)/(n-1)-.5,y:(j+1)/(n-1)-.5},
+          {v:zv[idx(j+1,i)], x:i/(n-1)-.5,   y:(j+1)/(n-1)-.5}
+        ];
+        const edges=[[0,1],[1,2],[2,3],[3,0]];
+        const pts3=[];
+        edges.forEach(([a,b])=>{
+          const ca=corners[a],cb=corners[b];
+          if((ca.v>=thresh)!==(cb.v>=thresh)){
+            const t=(thresh-ca.v)/(cb.v-ca.v);
+            const lx=ca.x+(cb.x-ca.x)*t;
+            const ly=ca.y+(cb.y-ca.y)*t;
+            const lz=(thresh-zMin)/(zMax-zMin)-.5;
+            pts3.push(new THREE.Vector3(lx,lz,ly));
+          }
+        });
+        if(pts3.length===2) segments.push(pts3);
+      }
+      if(!segments.length) return;
+      const lineCol=0xffffff;
+      segments.forEach(([a,b])=>{
+        const lg=new THREE.BufferGeometry().setFromPoints([a,b]);
+        contourGroup.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:lineCol,transparent:true,opacity:.7,linewidth:1})));
+      });
+    });
+    scene.add(contourGroup);
+    // Contour labels: store threshold positions for the 2D overlay
+    p._surfaceContourLabels=thresholds.map(thresh=>{
+      // Find midpoint of first segment at this level
+      for(let j=0;j<n-1;j++) for(let i=0;i<n-1;i++){
+        const idx=(r,c)=>r*n+c;
+        const corners=[
+          {v:zv[idx(j,i)],x:i/(n-1)-.5,y:j/(n-1)-.5},
+          {v:zv[idx(j,i+1)],x:(i+1)/(n-1)-.5,y:j/(n-1)-.5},
+        ];
+        if((corners[0].v>=thresh)!==(corners[1].v>=thresh)){
+          const t=(thresh-corners[0].v)/(corners[1].v-corners[0].v);
+          const lx=corners[0].x+(corners[1].x-corners[0].x)*t;
+          const ly=corners[0].y;
+          return {pos:[lx,(thresh-zMin)/(zMax-zMin)-.5,ly],val:thresh};
+        }
+      }
+      return null;
+    }).filter(Boolean);
+  } else { p._surfaceContourLabels=[]; }
+
+  // Axis lines with end markers
+  const axDefs=[
+    {a:[-.65,0,0],b:[.65,0,0],col:0x4F8EF7,label:p.xTitle||p.x1Col||'x₁',labelPos:[.7,-.05,0]},
+    {a:[0,-.65,0],b:[0,.65,0],col:0x2DD4BF,label:p.zTitle||p.yCol||'z',labelPos:[0,.72,0]},
+    {a:[0,0,-.65],b:[0,0,.65],col:0x9B72F7,label:p.yTitle||p.x2Col||'x₂',labelPos:[0,-.05,.7]}
+  ];
+  axDefs.forEach(({a,b,col})=>{
+    const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a),new THREE.Vector3(...b)]);
+    scene.add(new THREE.Line(lg,new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.6})));
+  });
+  // Tick marks on axes
+  const tickMat=new THREE.LineBasicMaterial({color:0x888888,transparent:true,opacity:.5});
+  for(let i=0;i<=4;i++){
+    const t=i/4-.5;
+    [[t,0,0],[0,t,0],[0,0,t]].forEach((pos,ai)=>{
+      const tickStart=new THREE.Vector3(...pos); const tickEnd=tickStart.clone();
+      if(ai===0){tickStart.y=-.02;tickEnd.y=.02;}
+      else if(ai===1){tickStart.x=-.02;tickEnd.x=.02;}
+      else{tickStart.x=-.02;tickEnd.x=.02;}
+      const tg=new THREE.BufferGeometry().setFromPoints([tickStart,tickEnd]);
+      scene.add(new THREE.Line(tg,tickMat));
+    });
+  }
+  // Overlay labels using a 2D canvas overlay
+  const labelCanvas=document.createElement('canvas');
+  labelCanvas.style.cssText='position:absolute;top:0;left:0;pointer-events:none;';
+  canvas.parentElement.style.position='relative';
+  canvas.parentElement.appendChild(labelCanvas);
+  function updateLabels(){
+    const rect=canvas.getBoundingClientRect();
+    labelCanvas.width=rect.width*devicePixelRatio; labelCanvas.height=rect.height*devicePixelRatio;
+    labelCanvas.style.width=rect.width+'px'; labelCanvas.style.height=rect.height+'px';
+    const ctx2=labelCanvas.getContext('2d');
+    ctx2.clearRect(0,0,labelCanvas.width,labelCanvas.height);
+    const ff=p.fontFamily||'Inter'; const ts=parseInt(p.tickSize)||11; const ls=parseInt(p.labelSize)||12;
+    const tc=p.textColor||'#dde1f0';
+    ctx2.scale(devicePixelRatio,devicePixelRatio);
+    // Project 3D points to screen
+    function project(x,y,z){
+      const v=new THREE.Vector3(x,y,z);
+      v.project(camera);
+      return {x:(v.x+1)/2*rect.width, y:(-v.y+1)/2*rect.height};
+    }
+    // Axis end labels
+    const axLabels=[
+      {pos:[.7,-.05,0],text:p.xTitle||p.x1Col||'x₁',col:'#4F8EF7'},
+      {pos:[0,.75,0],text:p.zTitle||p.yCol||'y',col:'#2DD4BF'},
+      {pos:[0,-.05,.72],text:p.yTitle||p.x2Col||'x₂',col:'#9B72F7'},
+    ];
+    axLabels.forEach(({pos,text,col})=>{
+      const sp=project(...pos);
+      ctx2.fillStyle=col; ctx2.font=`600 ${ls}px ${ff}`;
+      ctx2.textAlign='center'; ctx2.textBaseline='middle';
+      ctx2.fillText(text,sp.x,sp.y);
+    });
+    // Tick values (togglable)
+    const xRange=xMax-xMin; const yRange=yMax-yMin; const zRange=zMax-zMin;
+    if(p.showTicks3d!==false&&p.showTicks3d!=='false'){
+      ctx2.fillStyle=tc; ctx2.font=`${ts}px ${ff}`; ctx2.textAlign='center';
+      for(let i=0;i<=4;i++){
+        const t=i/4, nd=t-.5;
+        const sp=project(nd,-.52,0);
+        ctx2.fillText(fmt(xMin+t*xRange,2),sp.x,sp.y);
+      }
+      ctx2.textAlign='right';
+      for(let i=0;i<=4;i++){
+        const t=i/4, nd=t-.5;
+        const sp=project(-.52,nd,0);
+        ctx2.fillText(fmt(zMin+t*zRange,2),sp.x-3,sp.y);
+      }
+      ctx2.textAlign='left';
+      for(let i=0;i<=4;i++){
+        const t=i/4, nd=t-.5;
+        const sp=project(0,-.52,nd);
+        ctx2.fillText(fmt(yMin+t*yRange,2),sp.x+4,sp.y);
+      }
+    }
+    // Plot title
+    if(p.title){
+      ctx2.fillStyle=tc; ctx2.font=`600 ${parseInt(p.titleSize)||15}px ${ff}`;
+      ctx2.textAlign='center'; ctx2.textBaseline='top';
+      ctx2.fillText(p.title,rect.width/2,8);
+    }
+    // Surface contour labels
+    if((p.showSurfaceContours===true||p.showSurfaceContours==='true')&&p.labelSurfaceContours&&p._surfaceContourLabels){
+      ctx2.font=`600 ${ts-1}px ${ff}`; ctx2.textAlign='center'; ctx2.textBaseline='middle';
+      p._surfaceContourLabels.forEach(({pos,val})=>{
+        const sp=project(...pos);
+        const txt=fmt(val,2);
+        ctx2.fillStyle='rgba(0,0,0,0.55)';
+        const tw=ctx2.measureText(txt).width;
+        ctx2.fillRect(sp.x-tw/2-2,sp.y-6,tw+4,13);
+        ctx2.fillStyle='#ffffff';
+        ctx2.fillText(txt,sp.x,sp.y);
+      });
+    }
+    // R² info
+    if(p.regResult){
+      ctx2.fillStyle=hexAlpha(tc,.45); ctx2.font=`${ts-1}px JetBrains Mono,monospace`;
+      ctx2.textAlign='left'; ctx2.textBaseline='bottom';
+      ctx2.fillText(`R²=${fmt(p.regResult.r2,4)}  RMSE=${fmt(p.regResult.rmse,3)}`,8,rect.height-6);
+    }
+  }
+  let theta=-.7,phi=.5,radius=2.3,drag=false,lx=0,ly=0;
+  camera.position.set(radius*Math.cos(phi)*Math.cos(theta),radius*Math.sin(phi),radius*Math.cos(phi)*Math.sin(theta));
+  camera.lookAt(0,0,0);
+  canvas.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+  canvas.addEventListener('mousemove',e=>{if(!drag)return;theta+=(e.clientX-lx)*.012;phi+=-(e.clientY-ly)*.012;phi=Math.max(-Math.PI/2+.05,Math.min(Math.PI/2-.05,phi));lx=e.clientX;ly=e.clientY;});
+  canvas.addEventListener('mouseup',()=>drag=false);
+  canvas.addEventListener('wheel',e=>{radius=Math.max(.5,Math.min(12,radius+e.deltaY*.006));e.preventDefault();},{passive:false});
+  let alive=true;
+  function animate(){if(!alive)return;requestAnimationFrame(animate);camera.position.set(radius*Math.cos(phi)*Math.cos(theta),radius*Math.sin(phi),radius*Math.cos(phi)*Math.sin(theta));camera.lookAt(0,0,0);renderer.render(scene,camera);updateLabels();}
+  animate();
+  // Cleanup on delete
+  const obs=new MutationObserver(()=>{if(!document.contains(canvas)){alive=false;renderer.dispose();if(labelCanvas.parentElement)labelCanvas.remove();obs.disconnect();}});
+  obs.observe(document.body,{childList:true,subtree:true});
+}
+
+function hexToRgb3(hex) {
+  if(hex.startsWith('rgb')){const m=hex.match(/\d+/g);return m?{r:+m[0],g:+m[1],b:+m[2]}:{r:79,g:142,b:247};}
+  const h=hex.replace('#','');
+  return {r:parseInt(h.slice(0,2),16)||0,g:parseInt(h.slice(2,4),16)||0,b:parseInt(h.slice(4,6),16)||0};
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// RIGHT PANEL
+// ═══════════════════════════════════════════════════════════
+function toggleRp() {
+  const rp=document.getElementById('rpanel');
+  rp.classList.toggle('open');
+  if(rp.classList.contains('open')&&S.active) openRp(S.active);
+}
+
+function openRp(id) {
+  S.active=id;
+  renderPlotList();
+  document.getElementById('rpanel').classList.add('open');
+  const p=S.plots.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('rp-title').textContent=p.title;
+  const tabs=['Variables','Style','Axes','Presets'];
+  const hasReg=p.type==='contour'||p.type==='surface3d';
+  if(hasReg) tabs.push('Regression');
+  document.getElementById('rp-tabs').innerHTML=tabs.map((t,i)=>`<div class="rp-tab ${i===0?'active':''}" onclick="switchRpTab(this,'rpt-${t.toLowerCase().replace(' ','-')}')">${t}</div>`).join('');
+  document.getElementById('rp-body').innerHTML=`
+    <div id="rpt-variables" class="rp-tab-body">${buildVarsTab(p)}</div>
+    <div id="rpt-style" class="rp-tab-body" style="display:none">${buildStyleTab(p)}</div>
+    <div id="rpt-axes" class="rp-tab-body" style="display:none">${buildAxesTab(p)}</div>
+    <div id="rpt-presets" class="rp-tab-body" style="display:none">${buildPresetsTab(p)}</div>
+    ${hasReg?`<div id="rpt-regression" class="rp-tab-body" style="display:none">${buildRegTab(p)}</div>`:''}
+    <div style="padding:10px 0 0;border-top:1px solid var(--border);margin-top:12px">
+      <button class="btn primary" style="width:100%" onclick="renderActive()">▶ Render</button>
+    </div>`;
+  bindRpInputs(id);
+}
+
+function switchRpTab(el,targetId){
+  el.closest('.rp-tabs').querySelectorAll('.rp-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('rp-body').querySelectorAll('.rp-tab-body').forEach(b=>b.style.display='none');
+  el.classList.add('active');
+  const t=document.getElementById(targetId);
+  if(t) t.style.display='block';
+}
+
+// ─── VARIABLES TAB ───────────────────────────────────────
+function buildVarsTab(p) {
+  const nc=S.cols.filter(c=>isNumericCol(c));
+  const ac=S.cols;
+  const sel=(v,cols,none=false)=>colSel(v,cols,none);
+
+  let h=`<div class="rp-sec">`;
+  if(p.type==='scatter'||p.type==='line'){
+    h+=`<div class="fr"><label>X Column</label><select id="pi-xCol">${sel(p.xCol,nc)}</select></div>
+    <div class="fr"><label>Y Column</label><select id="pi-yCol">${sel(p.yCol,nc)}</select></div>
+    <div class="fr"><label>Category / Color Group</label><select id="pi-catCol">${sel(p.catCol,ac,true)}</select></div>
+    <hr>`;
+    if(p.type==='scatter'){
+      h+=`<div class="fr"><label>Color by Column (numeric)</label><select id="pi-colorCol">${sel(p.colorCol,nc,true)}</select></div>
+      <div class="fr"><label>Size by Column</label><select id="pi-sizeCol">${sel(p.sizeCol,nc,true)}</select></div>`;
+    }
+    h+=`<div class="fr"><label>Trendline (all data)</label><select id="pi-showTrendline"><option value="false" ${!p.showTrendline?'selected':''}>None</option><option value="true" ${p.showTrendline?'selected':''}>Polynomial</option></select></div>
+    <div class="fr"><label>Trendline Order</label><input type="number" id="pi-trendOrder" value="${p.trendOrder||1}" min="1" max="4"></div>`;
+    // Per-category trendlines
+    const cats=p.catCol?catValues(p.catCol):[];
+    if(cats.length){
+      const colors=getCatColors(cats.length,p.colorTheme||'Dark Scientific');
+      h+=`<hr><div class="rp-sec-title">Per-Category Trendlines</div>`;
+      cats.forEach((cat,i)=>{
+        const hasTl=!!(p.catTrendlines&&p.catTrendlines[cat]);
+        const order=p.catTrendlines?.[cat]||1;
+        h+=`<div class="cat-tl-item">
+          <div class="cat-tl-dot" style="background:${colors[i%colors.length]}"></div>
+          <span class="cat-tl-name">${cat}</span>
+          <div class="cat-tl-ctrl">
+            <input type="checkbox" id="ctl-${i}" ${hasTl?'checked':''} onchange="toggleCatTl('${p.id}','${cat}',this.checked)">
+            <select style="width:60px;padding:2px 4px" id="ctlo-${i}" onchange="setCatTlOrder('${p.id}','${cat}',this.value)">
+              ${[1,2,3,4].map(o=>`<option value="${o}" ${order==o?'selected':''}>${o}</option>`).join('')}
+            </select>
+          </div>
+        </div>`;
+      });
+    }
+  } else if(p.type==='bar'){
+    h+=`<div class="fr"><label>X Column (categories)</label><select id="pi-xCol">${sel(p.xCol,ac)}</select></div>
+    <div class="fr"><label>Y Column (values)</label><select id="pi-yCol">${sel(p.yCol,nc)}</select></div>
+    <div class="fr"><label>Aggregation</label><select id="pi-aggFunc"><option value="mean" ${p.aggFunc==='mean'?'sel':''}>Mean</option><option value="sum" ${p.aggFunc==='sum'?'selected':''}>Sum</option><option value="min" ${p.aggFunc==='min'?'selected':''}>Min</option><option value="max" ${p.aggFunc==='max'?'selected':''}>Max</option><option value="count" ${p.aggFunc==='count'?'selected':''}>Count</option></select></div>
+    <div class="fr"><label>Orientation</label><select id="pi-horizontal"><option value="false" ${!p.horizontal?'selected':''}>Vertical</option><option value="true" ${p.horizontal?'selected':''}>Horizontal</option></select></div>`;
+  } else if(p.type==='barstack'||p.type==='bargroup'){
+    h+=`<div class="fr"><label>X Column</label><select id="pi-xCol">${sel(p.xCol,ac)}</select></div>
+    <div class="fr"><label>Y Columns</label><div style="max-height:100px;overflow:auto;background:var(--bg3);border-radius:var(--r);padding:5px;border:1px solid var(--border)">
+    ${nc.filter(c=>c!==p.xCol).map(c=>`<label style="display:flex;align-items:center;gap:5px;margin-bottom:2px"><input type="checkbox" ${(p.yCols||[]).includes(c)?'checked':''} onchange="toggleYCol('${p.id}','${c}',this.checked)"> ${c}</label>`).join('')}
+    </div></div>
+    <div class="fr"><label>Aggregation</label><select id="pi-aggFunc"><option value="mean" ${p.aggFunc==='mean'?'selected':''}>Mean</option><option value="sum" ${p.aggFunc==='sum'?'selected':''}>Sum</option></select></div>`;
+  } else if(p.type==='box'){
+    h+=`<div class="fr"><label>Group Column (X)</label><select id="pi-xCol">${sel(p.xCol,ac,true)}</select></div>
+    <div class="fr"><label>Value Column (Y)</label><select id="pi-yCol">${sel(p.yCol,nc)}</select></div>
+    <div class="fr"><label>Show Outliers</label><select id="pi-showOutliers"><option value="true" ${p.showOutliers?'selected':''}>Yes</option><option value="false" ${!p.showOutliers?'selected':''}>No</option></select></div>
+    <div class="fr"><label>Show Mean</label><select id="pi-showMean"><option value="false" ${!p.showMean?'selected':''}>No</option><option value="true" ${p.showMean?'selected':''}>Yes</option></select></div>`;
+  } else if(p.type==='contour'||p.type==='surface3d'){
+    h+=`<div class="fr"><label>X₁ Column</label><select id="pi-x1Col">${sel(p.x1Col,nc)}</select></div>
+    <div class="fr"><label>X₂ Column</label><select id="pi-x2Col">${sel(p.x2Col,nc)}</select></div>
+    <div class="fr"><label>Y (Response) Column</label><select id="pi-yCol">${sel(p.yCol,nc)}</select></div>
+
+    if(p.type==='contour'){
+      h+=`<hr><div class="fr"><label>Filled Contours</label><select id="pi-filled"><option value="true" ${p.filled!==false?'selected':''}>Yes</option><option value="false" ${p.filled===false?'selected':''}>No</option></select></div>
+      <div class="fr"><label>Contour Levels</label><input type="number" id="pi-nContours" value="${p.nContours||15}" min="4" max="40"></div>
+      <div class="fr"><label>Label Contour Values</label><select id="pi-labelContours"><option value="false" ${!(p.labelContours===true||p.labelContours==='true')?'selected':''}>No</option><option value="true" ${(p.labelContours===true||p.labelContours==='true')?'selected':''}>Yes</option></select></div>
+      <div class="fr"><label>Contour Label Size</label><input type="number" id="pi-contourLabelSize" value="${p.contourLabelSize||9}" min="6" max="16"></div>`;
+    } else {
+      h+=`<hr>
+      <div class="fr"><label>Wireframe</label><select id="pi-wireframe"><option value="false" ${!(p.wireframe===true||p.wireframe==='true')?'selected':''}>No</option><option value="true" ${(p.wireframe===true||p.wireframe==='true')?'selected':''}>Yes</option></select></div>
+      <div class="fr"><label>Opacity</label><input type="range" id="pi-opacity" min="0.1" max="1" step="0.05" value="${p.opacity||1}"> <span id="op-val">${parseFloat(p.opacity||1).toFixed(2)}</span></div>
+      <hr>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Surface Contour Lines</div>
+      <div class="fr"><label>Show Tick Values</label><select id="pi-showTicks3d"><option value="true" ${p.showTicks3d!==false&&p.showTicks3d!=='false'?'selected':''}>Yes</option><option value="false" ${p.showTicks3d===false||p.showTicks3d==='false'?'selected':''}>No</option></select></div>
+      <div class="fr"><label>Show Contours on Surface</label><select id="pi-showSurfaceContours"><option value="false" ${!(p.showSurfaceContours===true||p.showSurfaceContours==='true')?'selected':''}>No</option><option value="true" ${(p.showSurfaceContours===true||p.showSurfaceContours==='true')?'selected':''}>Yes</option></select></div>
+      <div class="fr"><label>Number of Contour Lines</label><input type="number" id="pi-nSurfaceContours" value="${p.nSurfaceContours||8}" min="2" max="30"></div>
+      <div class="fr"><label>Label Contour Values</label><select id="pi-labelSurfaceContours"><option value="true" ${p.labelSurfaceContours!==false?'selected':''}>Yes</option><option value="false" ${p.labelSurfaceContours===false?'selected':''}>No</option></select></div>`;
+    }
+    h+=`<div class="fr"><label>Grid Resolution</label><input type="number" id="pi-nGrid" value="${p.nGrid||80}" min="20" max="150"></div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+
+// ─── STYLE TAB ───────────────────────────────────────────
+function buildStyleTab(p) {
+  const themes=Object.keys(THEMES);
+  let h=`<div class="rp-sec">
+  <div class="rp-sec-title">Main Color</div>
+  <div id="swatch-main" class="palette-swatches" style="margin-bottom:8px">
+    ${(THEMES[p.colorTheme||'Dark Scientific']||[]).map(c=>`<div class="swatch ${c===p.mainColor?'sel':''}" style="background:${c}" onclick="setMainColor('${p.id}','${c}',this)" title="${c}"></div>`).join('')}
+  </div>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Color Theme (for categorical)</div>
+  <select id="pi-colorTheme" onchange="updateColorTheme('${p.id}',this.value)">
+    ${themes.map(t=>`<option value="${t}" ${t===p.colorTheme?'selected':''}>${t}</option>`).join('')}
+  </select>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Color Map (for continuous)</div>
+  ${buildCmSelect(p)}
+  <div style="margin-top:8px">
+    <div style="font-size:9px;color:var(--text3);margin-bottom:5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase">Color Scale Range Override</div>
+    <div class="fri"><label style="min-width:36px">Min</label><input type="text" id="pi-cmMin" value="${p.cmMin||''}" placeholder="auto"></div>
+    <div class="fri"><label style="min-width:36px">Mid</label><input type="text" id="pi-cmMid" value="${p.cmMid||''}" placeholder="auto (tipping point)"></div>
+    <div class="fri"><label style="min-width:36px">Max</label><input type="text" id="pi-cmMax" value="${p.cmMax||''}" placeholder="auto"></div>
+    <div style="font-size:9px;color:var(--text3);margin-top:3px">Set midpoint to pin a color (e.g. white) at a tipping point value</div>
+  </div>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Text & Axis Colors</div>
+  <div class="fr"><label>Text Color (all labels, ticks, titles)</label>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">
+      ${['#dde1f0','#ffffff','#f0f0f0','#cccccc','#999999','#333333','#111111','#000000','#4F8EF7','#2DD4BF'].map(c=>`<div class="swatch ${c===p.textColor?'sel':''}" style="background:${c};border:1px solid #555" onclick="setTextColor('${p.id}','${c}',this)" title="${c}"></div>`).join('')}
+    </div>
+  </div>
+  <div class="fr"><label>Axis / Border Color</label>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      ${['#555c7a','#888888','#aaaaaa','#cccccc','#dddddd','#333333','#4F8EF7','#2DD4BF','#ffffff','#000000'].map(c=>`<div class="swatch ${c===p.axisColor?'sel':''}" style="background:${c};border:1px solid #555" onclick="setAxisColor('${p.id}','${c}',this)" title="${c}"></div>`).join('')}
+    </div>
+  </div>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Marker & Line</div>
+  <div class="fr"><label>Marker Size</label><input type="number" id="pi-markerSize" value="${p.markerSize||5}" min="1" max="30"></div>
+  <div class="fr"><label>Marker Shape</label><select id="pi-markerShape"><option value="circle">Circle</option><option value="rect">Square</option><option value="triangle">Triangle</option><option value="star">Star</option><option value="cross">Cross</option></select></div>
+  <div class="fr"><label>Marker Opacity</label><input type="range" id="pi-markerOpacity" min="0.1" max="1" step="0.05" value="${p.markerOpacity||0.85}"></div>
+  <div class="fr"><label>Line Width</label><input type="number" id="pi-lineWidth" value="${p.lineWidth||2}" min="0.5" max="10" step="0.5"></div>
+  <div class="fr"><label>Line Style</label><select id="pi-lineStyle"><option value="solid" ${p.lineStyle==='solid'?'selected':''}>Solid</option><option value="dashed" ${p.lineStyle==='dashed'?'selected':''}>Dashed</option><option value="dotted" ${p.lineStyle==='dotted'?'selected':''}>Dotted</option></select></div>
+  <div class="fr"><label>Fill Under Line</label><select id="pi-fill"><option value="false" ${!p.fill?'selected':''}>No</option><option value="true" ${p.fill?'selected':''}>Yes</option></select></div>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Legend</div>
+  <div class="fr"><label>Show Legend</label><select id="pi-showLegend"><option value="true" ${p.showLegend?'selected':''}>Yes</option><option value="false" ${!p.showLegend?'selected':''}>No</option></select></div>
+  <div class="fr"><label>Position</label><select id="pi-legendPos"><option value="top-right" ${p.legendPos==='top-right'?'selected':''}>Top Right</option><option value="top-left" ${p.legendPos==='top-left'?'selected':''}>Top Left</option><option value="bottom" ${p.legendPos==='bottom'?'selected':''}>Bottom</option><option value="right" ${p.legendPos==='right'?'selected':''}>Right</option></select></div>
+  </div>`;
+  return h;
+}
+
+function buildCmSelect(p) {
+  const cur=p.colormap||'viridis';
+  const opts=Object.keys(COLORMAPS).map(k=>`
+    <div class="cm-option ${k===cur?'sel':''}" onclick="selectCm('${p.id}','${k}',this)">
+      <div class="cm-option-bar" style="background:${cmGradientCSS(k)}"></div>
+      <span class="cm-option-name">${k}</span>
+    </div>`).join('');
+  return `<div class="cm-select" id="cms-${p.id}">
+    <div class="cm-display" onclick="toggleCmDrop('${p.id}')">
+      <div class="cm-bar" id="cmbar-${p.id}" style="background:${cmGradientCSS(cur)}"></div>
+      <span class="cm-name" id="cmname-${p.id}">${cur}</span>
+      <span class="cm-arrow">▼</span>
+    </div>
+    <div class="cm-dropdown" id="cmdrop-${p.id}" style="display:none">${opts}</div>
+  </div>`;
+}
+
+function toggleCmDrop(id) {
+  const d=document.getElementById(`cmdrop-${id}`);
+  d.style.display=d.style.display==='none'?'block':'none';
+}
+function selectCm(plotId,name,el) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  p.colormap=name;
+  document.getElementById(`cmbar-${plotId}`).style.background=cmGradientCSS(name);
+  document.getElementById(`cmname-${plotId}`).textContent=name;
+  const d=document.getElementById(`cmdrop-${plotId}`);
+  d.querySelectorAll('.cm-option').forEach(o=>o.classList.remove('sel'));
+  el.classList.add('sel');
+  d.style.display='none';
+}
+
+function setTextColor(plotId,col,el) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  p.textColor=col;
+  el.closest('.fr').querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function setAxisColor(plotId,col,el) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  p.axisColor=col;
+  el.closest('.fr').querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function setMainColor(plotId,col,el) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  p.mainColor=col;
+  document.querySelectorAll(`#swatch-main .swatch`).forEach(s=>s.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+function updateColorTheme(plotId,theme) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  p.colorTheme=theme;
+  // refresh swatch row
+  const sw=document.getElementById('swatch-main');
+  if(sw){ sw.innerHTML=(THEMES[theme]||[]).map(c=>`<div class="swatch ${c===p.mainColor?'sel':''}" style="background:${c}" onclick="setMainColor('${plotId}','${c}',this)" title="${c}"></div>`).join('');}
+}
+
+// ─── AXES TAB ────────────────────────────────────────────
+function buildAxesTab(p) {
+  return `<div class="rp-sec">
+  <div class="rp-sec-title">Titles</div>
+  <div class="fr"><label>Plot Title</label><input type="text" id="pi-title" value="${p.title||''}"></div>
+  <div class="fr"><label>X Axis Title</label><input type="text" id="pi-xTitle" value="${p.xTitle||''}"></div>
+  <div class="fr"><label>Y Axis Title</label><input type="text" id="pi-yTitle" value="${p.yTitle||''}"></div>
+  <div class="fr"><label>Z / Response Title</label><input type="text" id="pi-zTitle" value="${p.zTitle||''}"></div>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Font Sizes</div>
+  <div class="fr"><label>Title Font Size</label><input type="number" id="pi-titleSize" value="${p.titleSize||15}" min="8" max="40"></div>
+  <div class="fr"><label>Axis Label Size</label><input type="number" id="pi-labelSize" value="${p.labelSize||11}" min="6" max="30"></div>
+  <div class="fr"><label>Tick Font Size</label><input type="number" id="pi-tickSize" value="${p.tickSize||10}" min="6" max="24"></div>
+  <div class="fr"><label>Legend Font Size</label><input type="number" id="pi-fontSize" value="${p.fontSize||12}" min="6" max="24"></div>
+  <div class="fr"><label>Font Family</label><select id="pi-fontFamily"><option value="Inter" ${p.fontFamily==='Inter'?'selected':''}>Inter</option><option value="JetBrains Mono" ${p.fontFamily==='JetBrains Mono'?'selected':''}>JetBrains Mono</option><option value="Arial" ${p.fontFamily==='Arial'?'selected':''}>Arial</option><option value="Georgia" ${p.fontFamily==='Georgia'?'selected':''}>Georgia</option><option value="Times New Roman" ${p.fontFamily==='Times New Roman'?'selected':''}>Times New Roman</option><option value="Courier New" ${p.fontFamily==='Courier New'?'selected':''}>Courier New</option></select></div>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Ranges</div>
+  <div class="fri"><label>X Min</label><input type="text" id="pi-xMin" value="${p.xMin||''}"></div>
+  <div class="fri"><label>X Max</label><input type="text" id="pi-xMax" value="${p.xMax||''}"></div>
+  <div class="fri"><label>Y Min</label><input type="text" id="pi-yMin" value="${p.yMin||''}"></div>
+  <div class="fri"><label>Y Max</label><input type="text" id="pi-yMax" value="${p.yMax||''}"></div>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Scale</div>
+  <div class="fr"><label>X Scale</label><select id="pi-xLog"><option value="false" ${!p.xLog?'selected':''}>Linear</option><option value="true" ${p.xLog?'selected':''}>Log</option></select></div>
+  <div class="fr"><label>Y Scale</label><select id="pi-yLog"><option value="false" ${!p.yLog?'selected':''}>Linear</option><option value="true" ${p.yLog?'selected':''}>Log</option></select></div>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Grid & Background</div>
+  <div class="fr"><label>Plot Background</label><div style="display:flex;gap:6px;flex-wrap:wrap">${buildBgSwatches(p)}</div></div>
+  <div class="fr"><label>Show Grid</label><select id="pi-showGrid"><option value="true" ${p.showGrid?'selected':''}>Yes</option><option value="false" ${!p.showGrid?'selected':''}>No</option></select></div>
+  <div class="fr"><label>Aspect Ratio (W/H)</label><input type="number" id="pi-aspectRatio" value="${p.aspectRatio||1.6}" min="0.4" max="4" step="0.1"></div>
+  </div>`;
+}
+
+const BG_COLORS=['#1e2130','#ffffff','#fafafa','#f8f8f8','#1a1a2e','#0f1117','#fffdf7','#f0f4f8','#1c1f2a','#2d2d2d'];
+function buildBgSwatches(p) {
+  return BG_COLORS.map(c=>`<div class="swatch ${c===p.plotBg?'sel':''}" style="background:${c};border:1px solid #555" onclick="setBgColor('${p.id}','${c}',this)" title="${c}"></div>`).join('');
+}
+function setBgColor(plotId,col,el) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  p.plotBg=col;
+  document.querySelectorAll(`#rp-body .swatch`).forEach(s=>{ if(s.onclick&&s.onclick.toString().includes('setBgColor')) s.classList.remove('sel'); });
+  el.classList.add('sel');
+}
+
+// ─── PRESETS TAB ────────────────────────────────────────
+function buildPresetsTab(p) {
+  return `<div class="rp-sec">
+  <div class="rp-sec-title">Style Presets</div>
+  <div class="preset-grid">
+    ${Object.entries(PRESETS).map(([k,v])=>`
+      <div class="preset-btn ${p.preset===k?'active':''}" onclick="applyPresetUI('${p.id}','${k}',this)">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+          <div style="width:14px;height:14px;border-radius:3px;background:${v.plotBg};border:1px solid #555;flex-shrink:0"></div>
+          <div class="preset-name">${v.name}</div>
+        </div>
+        <div class="preset-desc">${v.desc}</div>
+      </div>`).join('')}
+  </div>
+  </div>`;
+}
+
+function applyPresetUI(plotId,presetName,el) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  applyPreset(p,presetName);
+  // Update card title input
+  const ct=document.getElementById(`pc-${plotId}`)?.querySelector('.cc-title');
+  el.closest('.preset-grid').querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ─── REGRESSION TAB ────────────────────────────────────
+function buildRegTab(p) {
+  const reg=p.regResult||getRegData(p);
+  let regHtml='<div style="color:var(--text3);font-size:11px">Render to compute</div>';
+  if(reg) {
+    regHtml=`<div class="reg-formula">${reg.formula()}</div>
+    <div class="reg-stat"><span>R²</span><span>${fmt(reg.r2,5)}</span></div>
+    <div class="reg-stat"><span>RMSE</span><span>${fmt(reg.rmse,4)}</span></div>
+    <div class="reg-stat"><span>N</span><span>${reg.n}</span></div>`;
+  }
+  return `<div class="rp-sec">
+  <div class="rp-sec-title">Model Terms</div>
+  <div class="fr"><label><input type="checkbox" id="pi-includeSecond" ${p.includeSecond!==false?'checked':''}> Include 2nd order terms (x₁², x₂²)</label></div>
+  <div class="fr"><label><input type="checkbox" id="pi-includeInteraction" ${p.includeInteraction!==false?'checked':''}> Include interaction term (x₁·x₂)</label></div>
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Fitted Model</div>
+  ${regHtml}
+  <button class="btn sm" style="margin-top:8px;width:100%" onclick="recomputeReg('${p.id}')">↻ Recompute</button>
+  </div>`;
+}
+
+function recomputeReg(id) {
+  const p=S.plots.find(x=>x.id===id); if(!p) return;
+  const reg=getRegData(p); p.regResult=reg;
+  openRp(id); document.getElementById('rp-tabs').querySelectorAll('.rp-tab').forEach((t,i)=>{ if(t.textContent==='Regression'){t.click();} });
+}
+
+// ─── BIND INPUTS ────────────────────────────────────────
+function bindRpInputs(id) {
+  const p=S.plots.find(x=>x.id===id); if(!p) return;
+  const FIELDS=['xCol','yCol','x1Col','x2Col','zCol','catCol','colorCol','sizeCol','aggFunc','showTrendline','trendOrder','markerSize','markerShape','markerOpacity','lineWidth','lineStyle','fill','fillOpacity','showLegend','legendPos','aspectRatio','title','xTitle','yTitle','zTitle','xMin','xMax','yMin','yMax','xLog','yLog','showGrid','fontFamily','titleSize','labelSize','tickSize','fontSize','horizontal','filled','nContours','nGrid','wireframe','opacity','showOutliers','showMean','barWidth','includeSecond','includeInteraction','cmMin','cmMid','cmMax','nSurfaceContours','showSurfaceContours','labelSurfaceContours','showTicks3d','labelContours','contourLabelSize'];
+  FIELDS.forEach(k=>{
+    const el=document.getElementById(`pi-${k}`); if(!el) return;
+    const ev=el.type==='range'?'input':'change';
+    el.addEventListener(ev,()=>{
+      let v=el.type==='checkbox'?el.checked:el.value;
+      if(v==='true') v=true; else if(v==='false') v=false;
+      p[k]=v;
+      if(k==='sliderCol') { openRp(id); return; }
+      if(el.type==='range'){ const sp=document.getElementById(k.replace('pi-','')+'-val'); if(sp)sp.textContent=parseFloat(v).toFixed(2); }
+      if(k==='title'){ const ct=document.querySelector(`#pc-${id} .cc-title`); if(ct)ct.value=v; renderPlotList(); }
+    });
+  });
+}
+
+function toggleCatTl(plotId,cat,checked) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  if(!p.catTrendlines) p.catTrendlines={};
+  if(checked) p.catTrendlines[cat]=1; else delete p.catTrendlines[cat];
+}
+function setCatTlOrder(plotId,cat,order) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  if(!p.catTrendlines) p.catTrendlines={};
+  if(p.catTrendlines[cat]!==undefined) p.catTrendlines[cat]=parseInt(order);
+}
+function toggleYCol(plotId,col,checked) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  if(!p.yCols) p.yCols=[];
+  if(checked){ if(!p.yCols.includes(col)) p.yCols.push(col); } else p.yCols=p.yCols.filter(c=>c!==col);
+}
+function setSliderVal(plotId,val) {
+  const p=S.plots.find(x=>x.id===plotId); if(!p) return;
+  p.sliderVal=val; openRp(plotId);
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// DOWNLOAD / EXPORT
+// ═══════════════════════════════════════════════════════════
+function dlPlot(id) {
+  const p=S.plots.find(x=>x.id===id); if(!p) return;
+  if(p.type==='surface3d'){
+    const canvas=document.getElementById(`cv3-${id}`);
+    if(canvas){ const a=document.createElement('a'); a.href=canvas.toDataURL('image/png',1); a.download=`${p.title||'plot'}.png`; a.click(); }
+    return;
+  }
+  if(p.type==='box'||p.type==='contour'){
+    const svgEl=document.querySelector(`#cw-${id} svg`);
+    if(svgEl){
+      const scale=2;
+      const W=svgEl.width.baseVal.value, H=svgEl.height.baseVal.value;
+      const svgData=new XMLSerializer().serializeToString(svgEl);
+      // Inline all external fonts as dataURIs aren't needed - just use system fallback in canvas
+      const svgBlob='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgData);
+      const img=new Image();
+      img.onload=()=>{
+        const cv=document.createElement('canvas');
+        cv.width=W*scale; cv.height=H*scale;
+        const ctx=cv.getContext('2d');
+        ctx.fillStyle=svgEl.style.background||'#1e2130';
+        ctx.fillRect(0,0,cv.width,cv.height);
+        ctx.scale(scale,scale);
+        ctx.drawImage(img,0,0);
+        const a=document.createElement('a');
+        a.href=cv.toDataURL('image/png',1);
+        a.download=`${p.title||'plot'}.png`;
+        a.click();
+      };
+      img.onerror=()=>{
+        // Fallback: use Blob URL which handles special chars better
+        const blob=new Blob([svgData],{type:'image/svg+xml;charset=utf-8'});
+        const url=URL.createObjectURL(blob);
+        const img2=new Image();
+        img2.onload=()=>{
+          const cv=document.createElement('canvas');
+          cv.width=W*scale; cv.height=H*scale;
+          const ctx=cv.getContext('2d');
+          ctx.fillStyle=svgEl.style.background||'#1e2130';
+          ctx.fillRect(0,0,cv.width,cv.height);
+          ctx.scale(scale,scale); ctx.drawImage(img2,0,0);
+          const a=document.createElement('a'); a.href=cv.toDataURL('image/png',1); a.download=`${p.title||'plot'}.png`; a.click();
+          URL.revokeObjectURL(url);
+        };
+        img2.src=url;
+      };
+      img.src=svgBlob;
+    }
+    return;
+  }
+  const chart=S.charts[id];
+  if(chart){ const a=document.createElement('a'); a.href=chart.toBase64Image('image/png',1); a.download=`${p.title||'plot'}.png`; a.click(); }
+}
+
+function dlActive() { if(S.active) dlPlot(S.active); }
+</script>
+
+</body>
+</html>
