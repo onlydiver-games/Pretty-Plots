@@ -576,7 +576,7 @@ function fitRegression(x1vals, x2vals, yvals, terms) {
     const sst = y.reduce((s,v)=>s+(v-ymean)**2,0);
     const sse = X.reduce((s,r,i)=>s+(y[i]-r.reduce((a,v,j)=>a+v*coefs[j],0))**2,0);
     const r2 = 1-sse/sst;
-    const rmse = Math.sqrt(sse/(n-p));
+    const rmse = Math.sqrt(sse/Math.max(1, n-numTerms));
     return { coefs, termNames, r2, rmse, n,
       eval: (x1,x2) => buildRow(x1,x2).reduce((s,v,i)=>s+v*coefs[i],0),
       formula: () => {
@@ -652,7 +652,7 @@ const PDEFS = {
   bargroup: { xCol:'', yCols:[], aggFunc:'mean' },
   box: { xCol:'', yCol:'', catCol:'', mainColor:'#4F8EF7', showOutliers:true, showMean:false },
   contour: { x1Col:'', x2Col:'', yCol:'', sliderCol:'', sliderVal:null, termX1:true, termX2:true, termX1X2:false, termX1sq:false, termX2sq:false, termLnX1:false, termLnX2:false, termSqrtX1:false, termSqrtX2:false, termInvX1:false, termInvX2:false, termExpX1:false, termExpX2:false, showDataPoints:false, nGrid:80, nContours:15, filled:true, colormap:'viridis', regResult:null, xMin:'', xMax:'', yMin:'', yMax:'', cmMin:'', cmMid:'', cmMax:'', labelContours:false, contourLabelSize:9 },
-  surface3d: { x1Col:'', x2Col:'', yCol:'', sliderCol:'', sliderVal:null, termX1:true, termX2:true, termX1X2:false, termX1sq:false, termX2sq:false, termLnX1:false, termLnX2:false, termSqrtX1:false, termSqrtX2:false, termInvX1:false, termInvX2:false, termExpX1:false, termExpX2:false, showDataPoints:false, nGrid:50, colormap:'viridis', wireframe:false, opacity:1.0, regResult:null, xMin:'', xMax:'', yMin:'', yMax:'', showSurfaceContours:false, nSurfaceContours:8, labelSurfaceContours:true, cmMin:'', cmMid:'', cmMax:'', showTicks3d:true, tickIncrement3d:'', showDataPoints:false },
+  surface3d: { x1Col:'', x2Col:'', yCol:'', sliderCol:'', sliderVal:null, termX1:true, termX2:true, termX1X2:false, termX1sq:false, termX2sq:false, termLnX1:false, termLnX2:false, termSqrtX1:false, termSqrtX2:false, termInvX1:false, termInvX2:false, termExpX1:false, termExpX2:false, showDataPoints:false, nGrid:50, colormap:'viridis', wireframe:false, opacity:1.0, regResult:null, xMin:'', xMax:'', yMin:'', yMax:'', showSurfaceContours:false, nSurfaceContours:8, labelSurfaceContours:true, cmMin:'', cmMid:'', cmMax:'', showTicks3d:true, tickIncrement3d:'' },
 };
 
 function mkPlot(type) {
@@ -1086,7 +1086,23 @@ function renderContour(p, wrap) {
   wrap.innerHTML='';
   if(!p.x1Col||!p.x2Col||!p.yCol){ wrap.innerHTML='<div style="padding:20px;color:var(--text3);font-size:11px">Configure X1, X2, Y columns</div>'; return; }
   const reg=getRegData(p);
-  if(!reg){ wrap.innerHTML='<div style="padding:20px;color:var(--danger);font-size:11px">Need ≥3 valid data rows</div>'; return; }
+  if(!reg){
+    const vd=visData();
+    const x1c=p.x1Col||'(not set)', x2c=p.x2Col||'(not set)', yc=p.yCol||'(not set)';
+    const n1=vd.filter(r=>!isNaN(parseFloat(r[p.x1Col]))).length;
+    const n2=vd.filter(r=>!isNaN(parseFloat(r[p.x2Col]))).length;
+    const ny=vd.filter(r=>!isNaN(parseFloat(r[p.yCol]))).length;
+    const nboth=vd.filter(r=>!isNaN(parseFloat(r[p.x1Col]))&&!isNaN(parseFloat(r[p.x2Col]))&&!isNaN(parseFloat(r[p.yCol]))).length;
+    wrap.innerHTML=`<div style="padding:20px;color:var(--danger);font-size:11px;font-family:'JetBrains Mono',monospace;line-height:1.8">
+      <b>Regression failed</b><br>
+      X₁: "${x1c}" → ${n1} numeric rows<br>
+      X₂: "${x2c}" → ${n2} numeric rows<br>
+      Y:  "${yc}" → ${ny} numeric rows<br>
+      All three valid: ${nboth} rows<br>
+      <span style="color:var(--text3)">Select columns in the Variables tab and click Render.</span>
+    </div>`;
+    return;
+  }
   p.regResult=reg;
 
   const W=wrap.offsetWidth||600, H=Math.max(300,Math.round(W/(parseFloat(p.aspectRatio)||1.2)));
@@ -1223,7 +1239,22 @@ function render3D(p, wrap) {
 function init3D(p, canvas) {
   if(!canvas) return;
   const reg=getRegData(p);
-  if(!reg){ canvas.insertAdjacentHTML('afterend','<div style="padding:20px;color:var(--danger);font-size:11px">Need ≥3 valid data rows</div>'); return; }
+  if(!reg){
+    const vd=visData();
+    const n1=vd.filter(r=>!isNaN(parseFloat(r[p.x1Col]))).length;
+    const n2=vd.filter(r=>!isNaN(parseFloat(r[p.x2Col]))).length;
+    const ny=vd.filter(r=>!isNaN(parseFloat(r[p.yCol]))).length;
+    const nboth=vd.filter(r=>!isNaN(parseFloat(r[p.x1Col]))&&!isNaN(parseFloat(r[p.x2Col]))&&!isNaN(parseFloat(r[p.yCol]))).length;
+    canvas.insertAdjacentHTML('afterend',`<div style="padding:20px;color:var(--danger);font-size:11px;font-family:'JetBrains Mono',monospace;line-height:1.8">
+      <b>Regression failed</b><br>
+      X₁: "${p.x1Col||'(not set)'}" → ${n1} rows<br>
+      X₂: "${p.x2Col||'(not set)'}" → ${n2} rows<br>
+      Y:  "${p.yCol||'(not set)'}" → ${ny} rows<br>
+      All valid: ${nboth} rows<br>
+      <span style="color:var(--text3)">Select columns in Variables tab, then Render.</span>
+    </div>`);
+    return;
+  }
   p.regResult=reg;
   // Store raw data for overlay
   {const vd2=visData();p._rawData3d=vd2.map(r=>({x1:parseFloat(r[p.x1Col]),x2:parseFloat(r[p.x2Col]),y:parseFloat(r[p.yCol])})).filter(d=>!isNaN(d.x1)&&!isNaN(d.x2)&&!isNaN(d.y));}
