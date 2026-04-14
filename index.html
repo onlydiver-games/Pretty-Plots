@@ -240,7 +240,7 @@ hr{border:none;border-top:1px solid var(--border);margin:8px 0}
       <span id="data-badge" style="font-size:9px;color:var(--accent3)"></span>
     </div>
     <div class="sb-body" id="sb-data">
-      <div id="upload-zone" onclick="document.getElementById('file-input').click()" ondragover="ev.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+      <div id="upload-zone" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
         <div style="font-size:24px;margin-bottom:6px">⬆</div>
         <div style="font-size:11px;font-weight:600;margin-bottom:3px">Drop CSV or Excel</div>
         <div style="font-size:10px">or click to browse</div>
@@ -1357,7 +1357,7 @@ function openRp(id) {
   const tabs=['Variables','Style','Axes','Presets'];
   const hasReg=p.type==='contour'||p.type==='surface3d';
   if(hasReg) tabs.push('Regression');
-  document.getElementById('rp-tabs').innerHTML=tabs.map((t,i)=>`<div class="rp-tab ${i===0?'active':''}" onclick="switchRpTab(this,'rpt-${t.toLowerCase().replace(' ','-')}')">${t}</div>`).join('');
+  document.getElementById('rp-tabs').innerHTML=tabs.map((t,i)=>{const tid='rpt-'+t.toLowerCase().replace(' ','-');return `<div class="rp-tab ${i===0?'active':''}" onclick="switchRpTab(this,'${tid}')">${t}</div>`;}).join('');
   document.getElementById('rp-body').innerHTML=`
     <div id="rpt-variables" class="rp-tab-body">${buildVarsTab(p)}</div>
     <div id="rpt-style" class="rp-tab-body" style="display:none">${buildStyleTab(p)}</div>
@@ -1435,8 +1435,7 @@ function buildVarsTab(p) {
   } else if(p.type==='contour'||p.type==='surface3d'){
     h+=`<div class="fr"><label>X₁ Column</label><select id="pi-x1Col">${sel(p.x1Col,nc)}</select></div>
     <div class="fr"><label>X₂ Column</label><select id="pi-x2Col">${sel(p.x2Col,nc)}</select></div>
-    <div class="fr"><label>Y (Response) Column</label><select id="pi-yCol">${sel(p.yCol,nc)}</select></div>
-
+    <div class="fr"><label>Y (Response) Column</label><select id="pi-yCol">${sel(p.yCol,nc)}</select></div>`;
     if(p.type==='contour'){
       h+=`<hr><div class="fr"><label>Filled Contours</label><select id="pi-filled"><option value="true" ${p.filled!==false?'selected':''}>Yes</option><option value="false" ${p.filled===false?'selected':''}>No</option></select></div>
       <div class="fr"><label>Contour Levels</label><input type="number" id="pi-nContours" value="${p.nContours||15}" min="4" max="40"></div>
