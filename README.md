@@ -3,11 +3,7 @@
 **Free, browser-based scientific data visualization tool.**
 
 (https://onlydiver-games.github.io/Pretty-Plots/)
-
-![Pretty Plots screenshot](screenshot.png)
-
----
-
+--
 ## Features
 
 **Plot types**
@@ -70,40 +66,7 @@ That's it. GitHub Pages serves the `index.html` which redirects to `pretty_plots
 
 ---
 
-## File structure
 
-```
-pretty-plots/
-├── index.html          ← GitHub Pages entry point (redirects to pretty_plots.html)
-├── pretty_plots.html   ← The entire application (single self-contained file)
-├── README.md
-└── .nojekyll           ← Tells GitHub Pages not to run Jekyll processing
-```
-
----
-
-## Browser support
-
-Works in any modern browser (Chrome, Firefox, Safari, Edge). Uses:
-- [Chart.js 4](https://www.chartjs.org/) — 2D charts
-- [D3.js 7](https://d3js.org/) — SVG-based plots (box, contour)
-- [Three.js r128](https://threejs.org/) — 3D surface rendering
-- [math.js 11](https://mathjs.org/) — regression computation
-- [SheetJS](https://sheetjs.com/) — Excel file parsing
-
-All libraries loaded from CDN. No build step required.
-
----
-
-## Support
-
-If Pretty Plots saves you time, consider supporting further development:
-
-**Bitcoin:** `38mQRxtUuvqaYBXUADh2p31V3BBiVfqhQ6`
-
-This is a free tool and always will be!
-
----
 
 ## License
 
