@@ -186,14 +186,12 @@ hr{border:none;border-top:1px solid var(--border);margin:8px 0}
 <script>
 window.onerror = function(msg, src, line, col, err) {
   const b = document.getElementById('err-banner');
-  if(b){ b.style.display='block'; b.textContent += 'ERROR: ' + msg + ' (line '+line+')
-'; }
+  if(b){ b.style.display='block'; b.textContent += 'ERROR: ' + msg + ' (line '+line+')\n'; }
   return false;
 };
 window.addEventListener('unhandledrejection', function(e){
   const b = document.getElementById('err-banner');
-  if(b){ b.style.display='block'; b.textContent += 'PROMISE: ' + e.reason + '
-'; }
+  if(b){ b.style.display='block'; b.textContent += 'PROMISE: ' + String(e.reason) + '\n'; }
 });
 </script>
 <div id="app">
@@ -536,28 +534,39 @@ function hideAllRows() { S.data.forEach((_,i)=>S.hiddenRows.add(i)); renderDataT
 // ═══════════════════════════════════════════════════════════
 // REGRESSION ENGINE
 // ═══════════════════════════════════════════════════════════
-function fitRegression(x1vals, x2vals, yvals, includeSecond=true, includeInteraction=true) {
-  // Build design matrix: [1, x1, x2, x1*x2, x1^2, x2^2]
+function fitRegression(x1vals, x2vals, yvals, terms) {
+  // terms: object with boolean flags for each term
+  // Supported: intercept(always), x1, x2, x1x2, x1sq, x2sq, lnx1, lnx2, expx1, expx2, sqrtx1, sqrtx2, inv_x1, inv_x2
+  const t = terms || {};
   const n = x1vals.length;
   if (n < 3) return null;
-  const termNames = ['intercept','x1','x2'];
-  if (includeInteraction) termNames.push('x1*x2');
-  if (includeSecond) { termNames.push('x1^2'); termNames.push('x2^2'); }
-
-  const buildRow = (x1,x2) => {
-    const r = [1, x1, x2];
-    if (includeInteraction) r.push(x1*x2);
-    if (includeSecond) { r.push(x1*x1); r.push(x2*x2); }
-    return r;
-  };
+  const termDefs = [
+    { name:'intercept', fn:(x1,x2)=>1,          label:'',       always:true },
+    { name:'x1',        fn:(x1,x2)=>x1,          label:'·x₁',   on: t.x1!==false },
+    { name:'x2',        fn:(x1,x2)=>x2,          label:'·x₂',   on: t.x2!==false },
+    { name:'x1*x2',     fn:(x1,x2)=>x1*x2,       label:'·x₁x₂', on: !!t.x1x2 },
+    { name:'x1^2',      fn:(x1,x2)=>x1*x1,       label:'·x₁²',  on: !!t.x1sq },
+    { name:'x2^2',      fn:(x1,x2)=>x2*x2,       label:'·x₂²',  on: !!t.x2sq },
+    { name:'ln(x1)',    fn:(x1,x2)=>Math.log(Math.abs(x1)||1e-10), label:'·ln(x₁)', on: !!t.lnx1 },
+    { name:'ln(x2)',    fn:(x1,x2)=>Math.log(Math.abs(x2)||1e-10), label:'·ln(x₂)', on: !!t.lnx2 },
+    { name:'sqrt(x1)',  fn:(x1,x2)=>Math.sqrt(Math.abs(x1)),       label:'·√x₁',   on: !!t.sqrtx1 },
+    { name:'sqrt(x2)',  fn:(x1,x2)=>Math.sqrt(Math.abs(x2)),       label:'·√x₂',   on: !!t.sqrtx2 },
+    { name:'1/x1',      fn:(x1,x2)=>1/(x1||1e-10),                 label:'·x₁⁻¹',  on: !!t.inv_x1 },
+    { name:'1/x2',      fn:(x1,x2)=>1/(x2||1e-10),                 label:'·x₂⁻¹',  on: !!t.inv_x2 },
+    { name:'exp(x1)',   fn:(x1,x2)=>{ const v=Math.exp(x1); return isFinite(v)?v:1e10; }, label:'·eˣ¹', on: !!t.expx1 },
+    { name:'exp(x2)',   fn:(x1,x2)=>{ const v=Math.exp(x2); return isFinite(v)?v:1e10; }, label:'·eˣ²', on: !!t.expx2 },
+  ];
+  const active = termDefs.filter(td => td.always || td.on);
+  const termNames = active.map(td=>td.name);
+  const buildRow = (x1,x2) => active.map(td=>td.fn(x1,x2));
 
   const X = x1vals.map((v,i)=>buildRow(v,x2vals[i]));
   const y = yvals;
-  const p = termNames.length;
+  const numTerms = termNames.length;
 
   // X^T X
-  const XTX = Array.from({length:p},(_,i)=>Array.from({length:p},(_,j)=>X.reduce((s,r)=>s+r[i]*r[j],0)));
-  const XTy = Array.from({length:p},(_,i)=>X.reduce((s,r,k)=>s+r[i]*y[k],0));
+  const XTX = Array.from({length:numTerms},(_,i)=>Array.from({length:numTerms},(_,j)=>X.reduce((s,r)=>s+r[i]*r[j],0)));
+  const XTy = Array.from({length:numTerms},(_,i)=>X.reduce((s,r,k)=>s+r[i]*y[k],0));
 
   try {
     const coefs = gaussSolve(XTX, XTy);
@@ -573,7 +582,8 @@ function fitRegression(x1vals, x2vals, yvals, includeSecond=true, includeInterac
       formula: () => {
         const round = v => { const r=Math.round(v*10000)/10000; return r>=0?`+${r}`:`${r}`; };
         const tmap = {'intercept':'','x1':'·x₁','x2':'·x₂','x1*x2':'·x₁x₂','x1^2':'·x₁²','x2^2':'·x₂²'};
-        return 'ŷ = ' + coefs.map((c,i)=>{ if(Math.abs(c)<1e-10)return''; return `${round(c)}${tmap[termNames[i]]}`; }).filter(Boolean).join(' ');
+        const labelMap = Object.fromEntries(active.map(td=>[td.name,td.label]));
+        return 'ŷ = ' + coefs.map((c,i)=>{ if(Math.abs(c)<1e-10)return''; return `${round(c)}${labelMap[termNames[i]]||''}`; }).filter(Boolean).join(' ');
       }
     };
   } catch(e) { return null; }
@@ -628,6 +638,7 @@ const PDEFS = {
     preset:'darkgrid', colorTheme:'Dark Scientific',
     showLegend:true, legendPos:'top-right',
     aspectRatio:1.6,
+    plotScale:1.0,
     // from preset (will be overwritten by preset)
     plotBg:'#1e2130', textColor:'#dde1f0', axisColor:'#555c7a',
     gridColor:'#2a2d3e', gridAlpha:1, showGrid:true,
@@ -640,8 +651,8 @@ const PDEFS = {
   barstack: { xCol:'', yCols:[], aggFunc:'sum' },
   bargroup: { xCol:'', yCols:[], aggFunc:'mean' },
   box: { xCol:'', yCol:'', catCol:'', mainColor:'#4F8EF7', showOutliers:true, showMean:false },
-  contour: { x1Col:'', x2Col:'', yCol:'', sliderCol:'', sliderVal:null, includeSecond:true, includeInteraction:true, nGrid:80, nContours:15, filled:true, colormap:'viridis', regResult:null, xMin:'', xMax:'', yMin:'', yMax:'', cmMin:'', cmMid:'', cmMax:'', labelContours:false, contourLabelSize:9 },
-  surface3d: { x1Col:'', x2Col:'', yCol:'', sliderCol:'', sliderVal:null, includeSecond:true, includeInteraction:true, nGrid:50, colormap:'viridis', wireframe:false, opacity:1.0, regResult:null, xMin:'', xMax:'', yMin:'', yMax:'', showSurfaceContours:false, nSurfaceContours:8, labelSurfaceContours:true, cmMin:'', cmMid:'', cmMax:'', showTicks3d:true },
+  contour: { x1Col:'', x2Col:'', yCol:'', sliderCol:'', sliderVal:null, termX1:true, termX2:true, termX1X2:false, termX1sq:false, termX2sq:false, termLnX1:false, termLnX2:false, termSqrtX1:false, termSqrtX2:false, termInvX1:false, termInvX2:false, termExpX1:false, termExpX2:false, showDataPoints:false, nGrid:80, nContours:15, filled:true, colormap:'viridis', regResult:null, xMin:'', xMax:'', yMin:'', yMax:'', cmMin:'', cmMid:'', cmMax:'', labelContours:false, contourLabelSize:9 },
+  surface3d: { x1Col:'', x2Col:'', yCol:'', sliderCol:'', sliderVal:null, termX1:true, termX2:true, termX1X2:false, termX1sq:false, termX2sq:false, termLnX1:false, termLnX2:false, termSqrtX1:false, termSqrtX2:false, termInvX1:false, termInvX2:false, termExpX1:false, termExpX2:false, showDataPoints:false, nGrid:50, colormap:'viridis', wireframe:false, opacity:1.0, regResult:null, xMin:'', xMax:'', yMin:'', yMax:'', showSurfaceContours:false, nSurfaceContours:8, labelSurfaceContours:true, cmMin:'', cmMid:'', cmMax:'', showTicks3d:true, tickIncrement3d:'', showDataPoints:false },
 };
 
 function mkPlot(type) {
@@ -812,8 +823,10 @@ function mountCJ(p, wrap, config) {
   if (S.charts[p.id]) { try{S.charts[p.id].destroy()}catch(e){} delete S.charts[p.id]; }
   wrap.innerHTML=`<canvas id="cv-${p.id}" role="img" aria-label="${p.title}"></canvas>`;
   const canvas=document.getElementById(`cv-${p.id}`);
-  const H=Math.max(300,Math.round((wrap.offsetWidth||600)/(parseFloat(p.aspectRatio)||1.6)));
+  const baseW = Math.round((wrap.offsetWidth||600) * (parseFloat(p.plotScale)||1.0));
+  const H=Math.max(200,Math.round(baseW/(parseFloat(p.aspectRatio)||1.6)));
   canvas.parentElement.style.height=H+'px';
+  canvas.parentElement.style.width=baseW+'px';
   config.options = config.options||{};
   config.options.responsive=true; config.options.maintainAspectRatio=false;
   config.options.animation={duration:300};
@@ -972,7 +985,7 @@ function renderBarMulti(p, wrap) {
 function renderBox(p, wrap) {
   const vd=visData();
   wrap.innerHTML='';
-  const W=wrap.offsetWidth||600, H=Math.max(300,Math.round(W/(parseFloat(p.aspectRatio)||1.6)));
+  const W=Math.round((wrap.offsetWidth||600)*(parseFloat(p.plotScale)||1.0)), H=Math.max(200,Math.round(W/(parseFloat(p.aspectRatio)||1.6)));
   const m={top:30,right:30,bottom:55,left:60};
   const svg=d3.select(wrap).append('svg').attr('width',W).attr('height',H).style('border-radius','8px').style('background',p.plotBg||'#1e2130');
   const gc=p.showGrid?hexAlpha(p.gridColor||'#2a2d3e',parseFloat(p.gridAlpha)||1):'transparent';
@@ -1034,7 +1047,22 @@ function getRegData(p) {
   const valid=x1.map((_,i)=>!isNaN(x1[i])&&!isNaN(x2[i])&&!isNaN(y[i]));
   const fx1=x1.filter((_,i)=>valid[i]), fx2=x2.filter((_,i)=>valid[i]), fy=y.filter((_,i)=>valid[i]);
   if(fx1.length<3) return null;
-  return fitRegression(fx1,fx2,fy,p.includeSecond!==false,p.includeInteraction!==false);
+  // Build terms object from plot settings
+  const terms = {
+    x1: p.termX1!==false, x2: p.termX2!==false,
+    x1x2: p.termX1X2===true||p.termX1X2==='true',
+    x1sq: p.termX1sq===true||p.termX1sq==='true',
+    x2sq: p.termX2sq===true||p.termX2sq==='true',
+    lnx1: p.termLnX1===true||p.termLnX1==='true',
+    lnx2: p.termLnX2===true||p.termLnX2==='true',
+    sqrtx1: p.termSqrtX1===true||p.termSqrtX1==='true',
+    sqrtx2: p.termSqrtX2===true||p.termSqrtX2==='true',
+    inv_x1: p.termInvX1===true||p.termInvX1==='true',
+    inv_x2: p.termInvX2===true||p.termInvX2==='true',
+    expx1: p.termExpX1===true||p.termExpX1==='true',
+    expx2: p.termExpX2===true||p.termExpX2==='true',
+  };
+  return fitRegression(fx1,fx2,fy,terms);
 }
 
 function buildGrid(p, reg) {
@@ -1065,6 +1093,8 @@ function renderContour(p, wrap) {
   const m={top:30,right:80,bottom:55,left:60};
   const svg=d3.select(wrap).append('svg').attr('width',W).attr('height',H).style('background',p.plotBg||'#1e2130').style('border-radius','8px');
 
+  // Store raw data for overlay
+  {const vd2=visData();p._rawData3d=vd2.map(r=>({x1:parseFloat(r[p.x1Col]),x2:parseFloat(r[p.x2Col]),y:parseFloat(r[p.yCol])})).filter(d=>!isNaN(d.x1)&&!isNaN(d.x2)&&!isNaN(d.y));}
   const {xMin,xMax,yMin,yMax,n,zv}=buildGrid(p,reg);
   const zMin=Math.min(...zv), zMax=Math.max(...zv);
   const xs=d3.scaleLinear().domain([xMin,xMax]).range([m.left,W-m.right]);
@@ -1137,24 +1167,56 @@ function renderContour(p, wrap) {
   svg.append('text').attr('x',m.left+(W-m.left-m.right)/2).attr('y',H-10).attr('text-anchor','middle').attr('fill',tc).style('font-family',ff).style('font-size',ls+'px').text(p.xTitle||p.x1Col||'x₁');
   svg.append('text').attr('transform','rotate(-90)').attr('x',-(m.top+(H-m.top-m.bottom)/2)).attr('y',14).attr('text-anchor','middle').attr('fill',tc).style('font-family',ff).style('font-size',ls+'px').text(p.yTitle||p.x2Col||'x₂');
 
-  // Colorbar
-  const cbId='cb'+p.id; const cbX=W-m.right+14, cbH=H-m.top-m.bottom;
-  const cbGrad=defs.append('linearGradient').attr('id',cbId).attr('x1','0').attr('x2','0').attr('y1','0').attr('y2','1');
-  (COLORMAPS[p.colormap||'viridis']?.stops||[]).slice().reverse().forEach((c,i,a)=>cbGrad.append('stop').attr('offset',`${i/(a.length-1)*100}%`).attr('stop-color',c));
-  svg.append('rect').attr('x',cbX).attr('y',m.top).attr('width',12).attr('height',cbH).attr('fill',`url(#${cbId})`).attr('rx',2);
+  // Colorbar — build gradient to match the piecewise cmMid mapping
   const cbDispMin = (p.cmMin!==''&&p.cmMin!==null&&p.cmMin!==undefined) ? parseFloat(p.cmMin) : zMin;
   const cbDispMax = (p.cmMax!==''&&p.cmMax!==null&&p.cmMax!==undefined) ? parseFloat(p.cmMax) : zMax;
+  const cbDispMid = (p.cmMid!==''&&p.cmMid!==null&&p.cmMid!==undefined) ? parseFloat(p.cmMid) : null;
+  const cbId='cb'+p.id; const cbX=W-m.right+14, cbH=H-m.top-m.bottom;
+  const cbGrad=defs.append('linearGradient').attr('id',cbId).attr('x1','0').attr('x2','0').attr('y1','0').attr('y2','1');
+  // Sample N stops from top (max) to bottom (min), using the same piecewise t as getColorFromMap
+  const cbN=64;
+  for(let i=0;i<=cbN;i++){
+    const frac=i/cbN; // 0=top=max, 1=bottom=min
+    const val=cbDispMax+(cbDispMin-cbDispMax)*frac;
+    const col=getColorFromMap(val,cbDispMin,cbDispMax,p.colormap||'viridis',p);
+    cbGrad.append('stop').attr('offset',`${frac*100}%`).attr('stop-color',col);
+  }
+  svg.append('rect').attr('x',cbX).attr('y',m.top).attr('width',12).attr('height',cbH).attr('fill',`url(#${cbId})`).attr('rx',2);
+  // Axis: if midpoint set, use custom ticks including the midpoint
+  let cbTicks=[cbDispMin,cbDispMax];
+  if(cbDispMid!==null) cbTicks=[cbDispMin,cbDispMid,cbDispMax];
+  else { const step=(cbDispMax-cbDispMin)/4; cbTicks=Array.from({length:5},(_,i)=>cbDispMin+i*step); }
   const cbS=d3.scaleLinear().domain([cbDispMax,cbDispMin]).range([m.top,m.top+cbH]);
-  svg.append('g').attr('transform',`translate(${cbX+12},0)`).call(d3.axisRight(cbS).ticks(5).tickSize(3)).call(g=>{g.select('.domain').remove();g.selectAll('text').attr('fill',tc).style('font-size',ts+'px').style('font-family',ff);g.selectAll('line').attr('stroke',ac);});
+  // Draw tick marks and labels manually for precise control
+  const cbG=svg.append('g').attr('transform',`translate(${cbX+12},0)`);
+  cbTicks.forEach(v=>{
+    const cy=cbS(v);
+    cbG.append('line').attr('x1',0).attr('x2',3).attr('y1',cy).attr('y2',cy).attr('stroke',ac).attr('stroke-width',.8);
+    cbG.append('text').attr('x',5).attr('y',cy).attr('dominant-baseline','middle').attr('fill',tc).style('font-size',ts+'px').style('font-family',ff).text(fmt(v,2));
+  });
 
-    // (R² stats shown in Regression tab)
+  // Overlay real data points
+  if(p.showDataPoints===true||p.showDataPoints==='true'){
+    const vd2=visData();
+    const x1v=vd2.map(r=>parseFloat(r[p.x1Col])), x2v=vd2.map(r=>parseFloat(r[p.x2Col]));
+    const dotCol=p.textColor||'#ffffff';
+    x1v.forEach((xv,i)=>{
+      if(isNaN(xv)||isNaN(x2v[i])) return;
+      const cx=xs(xv), cy=ys(x2v[i]);
+      if(cx<m.left||cx>W-m.right||cy<m.top||cy>H-m.bottom) return;
+      svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',3.5)
+        .attr('fill','none').attr('stroke',dotCol).attr('stroke-width',1.5).attr('opacity',.8);
+    });
+  }
+  // (R² stats shown in Regression tab)
 }
 
 // ═══════════════════════════════════════════════════════════
 // 3D SURFACE (Three.js + auto-regression)
 // ═══════════════════════════════════════════════════════════
 function render3D(p, wrap) {
-  wrap.innerHTML=`<canvas id="cv3-${p.id}" style="width:100%;height:440px;border-radius:8px;display:block"></canvas>`;
+  const s3d=parseFloat(p.plotScale)||1.0;
+  wrap.innerHTML=`<canvas id="cv3-${p.id}" style="width:${Math.round(100*s3d)}%;height:${Math.round(440*s3d)}px;border-radius:8px;display:block"></canvas>`;
   setTimeout(()=>init3D(p,document.getElementById(`cv3-${p.id}`)),60);
 }
 
@@ -1163,6 +1225,8 @@ function init3D(p, canvas) {
   const reg=getRegData(p);
   if(!reg){ canvas.insertAdjacentHTML('afterend','<div style="padding:20px;color:var(--danger);font-size:11px">Need ≥3 valid data rows</div>'); return; }
   p.regResult=reg;
+  // Store raw data for overlay
+  {const vd2=visData();p._rawData3d=vd2.map(r=>({x1:parseFloat(r[p.x1Col]),x2:parseFloat(r[p.x2Col]),y:parseFloat(r[p.yCol])})).filter(d=>!isNaN(d.x1)&&!isNaN(d.x2)&&!isNaN(d.y));}
   const {xMin,xMax,yMin,yMax,n,zv}=buildGrid(p,reg);
   const zMin=Math.min(...zv), zMax=Math.max(...zv);
   const W=canvas.offsetWidth||600, H=canvas.offsetHeight||440;
@@ -1321,30 +1385,57 @@ function init3D(p, canvas) {
     // Tick values (togglable)
     const xRange=xMax-xMin; const yRange=yMax-yMin; const zRange=zMax-zMin;
     if(p.showTicks3d!==false&&p.showTicks3d!=='false'){
-      ctx2.fillStyle=tc; ctx2.font=`${ts}px ${ff}`; ctx2.textAlign='center';
-      for(let i=0;i<=4;i++){
-        const t=i/4, nd=t-.5;
+      ctx2.fillStyle=tc; ctx2.font=`${ts}px ${ff}`;
+      // Build tick values for each axis using tickIncrement3d or auto
+      function axisTicks(vMin,vRange){
+        const inc=parseFloat(p.tickIncrement3d);
+        if(!isNaN(inc)&&inc>0){
+          const ticks=[];
+          const start=Math.ceil(vMin/inc)*inc;
+          for(let v=start;v<=vMin+vRange+1e-9;v+=inc) ticks.push(Math.round(v*1e8)/1e8);
+          return ticks;
+        }
+        // Auto: ~5 ticks
+        return Array.from({length:5},(_,i)=>vMin+vRange*i/4);
+      }
+      ctx2.textAlign='center';
+      axisTicks(xMin,xRange).forEach(v=>{
+        const nd=(v-xMin)/xRange-.5;
         const sp=project(nd,-.52,0);
-        ctx2.fillText(fmt(xMin+t*xRange,2),sp.x,sp.y);
-      }
+        ctx2.fillText(fmt(v,2),sp.x,sp.y);
+      });
       ctx2.textAlign='right';
-      for(let i=0;i<=4;i++){
-        const t=i/4, nd=t-.5;
+      axisTicks(zMin,zRange).forEach(v=>{
+        const nd=(v-zMin)/zRange-.5;
         const sp=project(-.52,nd,0);
-        ctx2.fillText(fmt(zMin+t*zRange,2),sp.x-3,sp.y);
-      }
+        ctx2.fillText(fmt(v,2),sp.x-3,sp.y);
+      });
       ctx2.textAlign='left';
-      for(let i=0;i<=4;i++){
-        const t=i/4, nd=t-.5;
+      axisTicks(yMin,yRange).forEach(v=>{
+        const nd=(v-yMin)/yRange-.5;
         const sp=project(0,-.52,nd);
-        ctx2.fillText(fmt(yMin+t*yRange,2),sp.x+4,sp.y);
-      }
+        ctx2.fillText(fmt(v,2),sp.x+4,sp.y);
+      });
     }
     // Plot title
     if(p.title){
       ctx2.fillStyle=tc; ctx2.font=`600 ${parseInt(p.titleSize)||15}px ${ff}`;
       ctx2.textAlign='center'; ctx2.textBaseline='top';
       ctx2.fillText(p.title,rect.width/2,8);
+    }
+    // Data point overlays
+    if((p.showDataPoints===true||p.showDataPoints==='true')&&p._rawData3d){
+      p._rawData3d.forEach(({x1,x2,y})=>{
+        const nx=(x1-xMin)/(xMax-xMin)-.5;
+        const ny=(x2-yMin)/(yMax-yMin)-.5;
+        const nz=(p.regResult?p.regResult.eval(x1,x2):y);
+        const nzn=(nz-zMin)/(zMax-zMin)-.5;
+        const sp=project(nx,nzn,ny);
+        ctx2.beginPath();
+        ctx2.arc(sp.x,sp.y,4,0,2*Math.PI);
+        ctx2.strokeStyle=tc; ctx2.lineWidth=1.5; ctx2.stroke();
+        ctx2.fillStyle='rgba(255,255,255,0.6)'; ctx2.fill();
+      });
     }
     // Surface contour labels
     if((p.showSurfaceContours===true||p.showSurfaceContours==='true')&&p.labelSurfaceContours&&p._surfaceContourLabels){
@@ -1496,7 +1587,8 @@ function buildVarsTab(p) {
     <div class="fr"><label>X₂ Column</label><select id="pi-x2Col">${sel(p.x2Col,nc)}</select></div>
     <div class="fr"><label>Y (Response) Column</label><select id="pi-yCol">${sel(p.yCol,nc)}</select></div>`;
     if(p.type==='contour'){
-      h+=`<hr><div class="fr"><label>Filled Contours</label><select id="pi-filled"><option value="true" ${p.filled!==false?'selected':''}>Yes</option><option value="false" ${p.filled===false?'selected':''}>No</option></select></div>
+      h+=`<hr><div class="fr"><label>Show Data Points</label><select id="pi-showDataPoints"><option value="false" ${!(p.showDataPoints===true||p.showDataPoints==='true')?'selected':''}>No</option><option value="true" ${(p.showDataPoints===true||p.showDataPoints==='true')?'selected':''}>Yes</option></select></div>`;
+      h+=`<div class="fr"><label>Filled Contours</label><select id="pi-filled"><option value="true" ${p.filled!==false?'selected':''}>Yes</option><option value="false" ${p.filled===false?'selected':''}>No</option></select></div>
       <div class="fr"><label>Contour Levels</label><input type="number" id="pi-nContours" value="${p.nContours||15}" min="4" max="40"></div>
       <div class="fr"><label>Label Contour Values</label><select id="pi-labelContours"><option value="false" ${!(p.labelContours===true||p.labelContours==='true')?'selected':''}>No</option><option value="true" ${(p.labelContours===true||p.labelContours==='true')?'selected':''}>Yes</option></select></div>
       <div class="fr"><label>Contour Label Size</label><input type="number" id="pi-contourLabelSize" value="${p.contourLabelSize||9}" min="6" max="16"></div>`;
@@ -1506,6 +1598,8 @@ function buildVarsTab(p) {
       <div class="fr"><label>Opacity</label><input type="range" id="pi-opacity" min="0.1" max="1" step="0.05" value="${p.opacity||1}"> <span id="op-val">${parseFloat(p.opacity||1).toFixed(2)}</span></div>
       <hr>
       <div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Surface Contour Lines</div>
+      <div class="fr"><label>Tick Increment (blank = auto)</label><input type="text" id="pi-tickIncrement3d" value="${p.tickIncrement3d||''}" placeholder="e.g. 2 or 0.5"></div>
+      <div class="fr"><label>Show Data Points</label><select id="pi-showDataPoints"><option value="false" ${!(p.showDataPoints===true||p.showDataPoints==='true')?'selected':''}>No</option><option value="true" ${(p.showDataPoints===true||p.showDataPoints==='true')?'selected':''}>Yes</option></select></div>
       <div class="fr"><label>Show Tick Values</label><select id="pi-showTicks3d"><option value="true" ${p.showTicks3d!==false&&p.showTicks3d!=='false'?'selected':''}>Yes</option><option value="false" ${p.showTicks3d===false||p.showTicks3d==='false'?'selected':''}>No</option></select></div>
       <div class="fr"><label>Show Contours on Surface</label><select id="pi-showSurfaceContours"><option value="false" ${!(p.showSurfaceContours===true||p.showSurfaceContours==='true')?'selected':''}>No</option><option value="true" ${(p.showSurfaceContours===true||p.showSurfaceContours==='true')?'selected':''}>Yes</option></select></div>
       <div class="fr"><label>Number of Contour Lines</label><input type="number" id="pi-nSurfaceContours" value="${p.nSurfaceContours||8}" min="2" max="30"></div>
@@ -1657,6 +1751,10 @@ function buildAxesTab(p) {
   <div class="fri"><label>Y Max</label><input type="text" id="pi-yMax" value="${p.yMax||''}"></div>
   </div>
   <div class="rp-sec">
+  <div class="rp-sec-title">Plot Size</div>
+  <div class="fr"><label>Plot Scale (1.0 = full width)</label><input type="range" id="pi-plotScale" min="0.3" max="1.5" step="0.05" value="${p.plotScale||1.0}" oninput="this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)"><span style="font-size:10px;min-width:30px">${parseFloat(p.plotScale||1.0).toFixed(2)}</span></div>
+  </div>
+  <div class="rp-sec">
   <div class="rp-sec-title">Scale</div>
   <div class="fr"><label>X Scale</label><select id="pi-xLog"><option value="false" ${!p.xLog?'selected':''}>Linear</option><option value="true" ${p.xLog?'selected':''}>Log</option></select></div>
   <div class="fr"><label>Y Scale</label><select id="pi-yLog"><option value="false" ${!p.yLog?'selected':''}>Linear</option><option value="true" ${p.yLog?'selected':''}>Log</option></select></div>
@@ -1716,10 +1814,25 @@ function buildRegTab(p) {
     <div class="reg-stat"><span>RMSE</span><span>${fmt(reg.rmse,4)}</span></div>
     <div class="reg-stat"><span>N</span><span>${reg.n}</span></div>`;
   }
+  const chk=(id,val,lbl)=>`<label style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0;cursor:pointer"><input type="checkbox" id="${id}" ${val?'checked':''}> ${lbl}</label>`;
   return `<div class="rp-sec">
-  <div class="rp-sec-title">Model Terms</div>
-  <div class="fr"><label><input type="checkbox" id="pi-includeSecond" ${p.includeSecond!==false?'checked':''}> Include 2nd order terms (x₁², x₂²)</label></div>
-  <div class="fr"><label><input type="checkbox" id="pi-includeInteraction" ${p.includeInteraction!==false?'checked':''}> Include interaction term (x₁·x₂)</label></div>
+  <div class="rp-sec-title">Polynomial Terms</div>
+  ${chk('pi-termX1',p.termX1!==false,'x₁ (linear)')}
+  ${chk('pi-termX2',p.termX2!==false,'x₂ (linear)')}
+  ${chk('pi-termX1X2',p.termX1X2===true||p.termX1X2==="true",'x₁·x₂ (interaction)')}
+  ${chk('pi-termX1sq',p.termX1sq===true||p.termX1sq==="true",'x₁² (quadratic)')}
+  ${chk('pi-termX2sq',p.termX2sq===true||p.termX2sq==="true",'x₂² (quadratic)')}
+  </div>
+  <div class="rp-sec">
+  <div class="rp-sec-title">Nonlinear Terms</div>
+  ${chk('pi-termLnX1',p.termLnX1===true||p.termLnX1==="true",'ln(x₁)')}
+  ${chk('pi-termLnX2',p.termLnX2===true||p.termLnX2==="true",'ln(x₂)')}
+  ${chk('pi-termSqrtX1',p.termSqrtX1===true||p.termSqrtX1==="true",'√x₁')}
+  ${chk('pi-termSqrtX2',p.termSqrtX2===true||p.termSqrtX2==="true",'√x₂')}
+  ${chk('pi-termInvX1',p.termInvX1===true||p.termInvX1==="true",'1/x₁')}
+  ${chk('pi-termInvX2',p.termInvX2===true||p.termInvX2==="true",'1/x₂')}
+  ${chk('pi-termExpX1',p.termExpX1===true||p.termExpX1==="true",'exp(x₁)')}
+  ${chk('pi-termExpX2',p.termExpX2===true||p.termExpX2==="true",'exp(x₂)')}
   </div>
   <div class="rp-sec">
   <div class="rp-sec-title">Fitted Model</div>
@@ -1737,7 +1850,7 @@ function recomputeReg(id) {
 // ─── BIND INPUTS ────────────────────────────────────────
 function bindRpInputs(id) {
   const p=S.plots.find(x=>x.id===id); if(!p) return;
-  const FIELDS=['xCol','yCol','x1Col','x2Col','zCol','catCol','colorCol','sizeCol','aggFunc','showTrendline','trendOrder','markerSize','markerShape','markerOpacity','lineWidth','lineStyle','fill','fillOpacity','showLegend','legendPos','aspectRatio','title','xTitle','yTitle','zTitle','xMin','xMax','yMin','yMax','xLog','yLog','showGrid','fontFamily','titleSize','labelSize','tickSize','fontSize','horizontal','filled','nContours','nGrid','wireframe','opacity','showOutliers','showMean','barWidth','includeSecond','includeInteraction','cmMin','cmMid','cmMax','nSurfaceContours','showSurfaceContours','labelSurfaceContours','showTicks3d','labelContours','contourLabelSize'];
+  const FIELDS=['xCol','yCol','x1Col','x2Col','zCol','catCol','colorCol','sizeCol','aggFunc','showTrendline','trendOrder','markerSize','markerShape','markerOpacity','lineWidth','lineStyle','fill','fillOpacity','showLegend','legendPos','aspectRatio','title','xTitle','yTitle','zTitle','xMin','xMax','yMin','yMax','xLog','yLog','showGrid','fontFamily','titleSize','labelSize','tickSize','fontSize','horizontal','filled','nContours','nGrid','wireframe','opacity','showOutliers','showMean','barWidth','termX1','termX2','termX1X2','termX1sq','termX2sq','termLnX1','termLnX2','termSqrtX1','termSqrtX2','termInvX1','termInvX2','termExpX1','termExpX2','cmMin','cmMid','cmMax','nSurfaceContours','showSurfaceContours','labelSurfaceContours','showTicks3d','labelContours','contourLabelSize','tickIncrement3d','showDataPoints','plotScale'];
   FIELDS.forEach(k=>{
     const el=document.getElementById(`pi-${k}`); if(!el) return;
     const ev=el.type==='range'?'input':'change';
