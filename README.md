@@ -2,7 +2,7 @@
 
 **Free, browser-based scientific data visualization tool.**
 
-Live site → [your-username.github.io/pretty-plots](https://your-username.github.io/pretty-plots)
+(https://onlydiver-games.github.io/Pretty-Plots/)
 
 ![Pretty Plots screenshot](screenshot.png)
 
