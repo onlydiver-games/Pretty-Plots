@@ -182,6 +182,20 @@ hr{border:none;border-top:1px solid var(--border);margin:8px 0}
 </head>
 <body>
 <div id="notif"></div>
+<div id="err-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#b00;color:#fff;padding:8px 12px;font-size:11px;font-family:monospace;white-space:pre-wrap;max-height:120px;overflow:auto"></div>
+<script>
+window.onerror = function(msg, src, line, col, err) {
+  const b = document.getElementById('err-banner');
+  if(b){ b.style.display='block'; b.textContent += 'ERROR: ' + msg + ' (line '+line+')
+'; }
+  return false;
+};
+window.addEventListener('unhandledrejection', function(e){
+  const b = document.getElementById('err-banner');
+  if(b){ b.style.display='block'; b.textContent += 'PROMISE: ' + e.reason + '
+'; }
+});
+</script>
 <div id="app">
 
 <!-- SIDEBAR -->
@@ -674,13 +688,24 @@ function addPlot(type) {
 
 function renderPlotList() {
   const icons={scatter:'⊹',line:'⟋',bar:'▐',barstack:'▬',bargroup:'▩',box:'□',contour:'◎',surface3d:'◇'};
-  document.getElementById('plot-list').innerHTML = S.plots.map(p=>`
-    <div class="pl-item ${p.id===S.active?'active':''}" onclick="selectPlot('${p.id}')">
-      <span style="font-size:13px;color:${p.id===S.active?'var(--accent)':'var(--text3)'}">${icons[p.type]||'○'}</span>
-      <span class="pl-item-name">${p.title}</span>
-      <span class="pl-item-type">${p.type}</span>
-      <span onclick="event.stopPropagation();deletePlot('${p.id}')" style="color:var(--text3);cursor:pointer;font-size:12px;padding:2px 4px" title="Delete">✕</span>
-    </div>`).join('');
+  const plEl = document.getElementById('plot-list');
+  plEl.innerHTML = '';
+  S.plots.forEach(p => {
+    const item = document.createElement('div');
+    item.className = 'pl-item' + (p.id===S.active?' active':'');
+    const icon = document.createElement('span');
+    icon.style.cssText = `font-size:13px;color:${p.id===S.active?'var(--accent)':'var(--text3)'}`;
+    icon.textContent = icons[p.type]||'○';
+    const name = document.createElement('span'); name.className='pl-item-name'; name.textContent=p.title;
+    const type = document.createElement('span'); type.className='pl-item-type'; type.textContent=p.type;
+    const del = document.createElement('span');
+    del.textContent='✕'; del.title='Delete';
+    del.style.cssText='color:var(--text3);cursor:pointer;font-size:12px;padding:2px 4px';
+    del.addEventListener('click', e=>{ e.stopPropagation(); deletePlot(p.id); });
+    item.appendChild(icon); item.appendChild(name); item.appendChild(type); item.appendChild(del);
+    item.addEventListener('click', ()=>selectPlot(p.id));
+    plEl.appendChild(item);
+  });
   document.getElementById('plot-count').textContent=`(${S.plots.length})`;
 }
 
@@ -707,7 +732,32 @@ function renderCanvas(id) {
       card=document.createElement('div');
       card.id=`pc-${id}`;
       card.className='chart-card';
-      card.innerHTML=`<div class="cc-hdr"><input class="cc-title" value="${p.title}" onchange="S.plots.find(x=>x.id==='${id}').title=this.value;renderPlotList()" placeholder="Plot title..."><div class="cc-acts"><button class="btn xs" onclick="openRp('${id}')">⚙</button><button class="btn xs" onclick="dlPlot('${id}')">↓</button><button class="btn xs danger" onclick="deletePlot('${id}')">✕</button></div></div><div id="cw-${id}" class="cv-wrap"></div>`;
+
+      // Build header safely with createElement (avoids Trusted Types issues on HTTPS)
+      const hdr=document.createElement('div'); hdr.className='cc-hdr';
+
+      const titleInput=document.createElement('input'); titleInput.className='cc-title';
+      titleInput.value=p.title; titleInput.placeholder='Plot title...';
+      titleInput.addEventListener('change',function(){S.plots.find(x=>x.id===id).title=this.value;renderPlotList();});
+      hdr.appendChild(titleInput);
+
+      const acts=document.createElement('div'); acts.className='cc-acts';
+
+      const btnSettings=document.createElement('button'); btnSettings.className='btn xs'; btnSettings.textContent='⚙';
+      btnSettings.addEventListener('click',()=>openRp(id)); acts.appendChild(btnSettings);
+
+      const btnDl=document.createElement('button'); btnDl.className='btn xs'; btnDl.textContent='↓';
+      btnDl.addEventListener('click',()=>dlPlot(id)); acts.appendChild(btnDl);
+
+      const btnDel=document.createElement('button'); btnDel.className='btn xs danger'; btnDel.textContent='✕';
+      btnDel.addEventListener('click',()=>deletePlot(id)); acts.appendChild(btnDel);
+
+      hdr.appendChild(acts);
+      card.appendChild(hdr);
+
+      const wrap=document.createElement('div'); wrap.id=`cw-${id}`; wrap.className='cv-wrap';
+      card.appendChild(wrap);
+
       container.appendChild(card);
     }
     dispatchRender(p);
@@ -1357,7 +1407,16 @@ function openRp(id) {
   const tabs=['Variables','Style','Axes','Presets'];
   const hasReg=p.type==='contour'||p.type==='surface3d';
   if(hasReg) tabs.push('Regression');
-  document.getElementById('rp-tabs').innerHTML=tabs.map((t,i)=>{const tid='rpt-'+t.toLowerCase().replace(' ','-');return `<div class="rp-tab ${i===0?'active':''}" onclick="switchRpTab(this,'${tid}')">${t}</div>`;}).join('');
+  const rpTabsEl = document.getElementById('rp-tabs');
+  rpTabsEl.innerHTML = '';
+  tabs.forEach((t,i) => {
+    const tid = 'rpt-' + t.toLowerCase().replace(' ','-');
+    const tab = document.createElement('div');
+    tab.className = 'rp-tab' + (i===0?' active':'');
+    tab.textContent = t;
+    tab.addEventListener('click', function(){ switchRpTab(this, tid); });
+    rpTabsEl.appendChild(tab);
+  });
   document.getElementById('rp-body').innerHTML=`
     <div id="rpt-variables" class="rp-tab-body">${buildVarsTab(p)}</div>
     <div id="rpt-style" class="rp-tab-body" style="display:none">${buildStyleTab(p)}</div>
